@@ -24,8 +24,8 @@ A secure file-based key management system that stores cryptographic keys in JSON
 ### Install from source
 
 ```bash
-git clone https://github.com/splurge/splurge-key-custodian-file.git
-cd splurge-key-custodian-file
+git clone https://github.com/splurge/splurge-key-custodian.git
+cd splurge-key-custodian
 pip install -e .
 ```
 

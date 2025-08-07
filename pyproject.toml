@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "splurge-key-custodian"
-version = "0.1.0"
+version = "0.1.1"
 description = "Splurge Key Custodian - File Based Implementation"
 readme = "README.md"
 license = "MIT"
@@ -35,9 +35,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/splurge/splurge-key-custodian-file"
-Repository = "https://github.com/splurge/splurge-key-custodian-file"
-Issues = "https://github.com/splurge/splurge-key-custodian-file/issues"
+Homepage = "https://github.com/splurge/splurge-key-custodian"
+Repository = "https://github.com/splurge/splurge-key-custodian"
+Issues = "https://github.com/splurge/splurge-key-custodian/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]
