@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "splurge-key-custodian"
+version = "0.1.0"
+description = "Splurge Key Custodian - File Based Implementation"
+readme = "README.md"
+license = "MIT"
+authors = [
+    {name = "Jim Schilling"}
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security :: Cryptography",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "cryptography>=41.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/splurge/splurge-key-custodian-file"
+Repository = "https://github.com/splurge/splurge-key-custodian-file"
+Issues = "https://github.com/splurge/splurge-key-custodian-file/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["splurge_key_custodian*"]
+
+[tool.black]
+line-length = 120
+target-version = ['py310']
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "ARG", "PIE", "T20", "TCH", "Q", "RSE", "RET", "SLF", "SLOT", "TID", "TCH", "INT", "PTH", "LOG", "PTH", "RUF"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "--cov=splurge_key_custodian --cov-report=term-missing --cov-report=html"
