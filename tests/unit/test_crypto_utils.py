@@ -285,8 +285,8 @@ class TestCryptoUtils(unittest.TestCase):
 
     def test_secure_zero(self):
         """Test secure zero functionality."""
-        # Test with bytes
-        test_bytes = b"secret data"
+        # Test with bytearray
+        test_bytes = bytearray(b"secret data")
         CryptoUtils.secure_zero(test_bytes)
         
         # Test with string
@@ -294,7 +294,7 @@ class TestCryptoUtils(unittest.TestCase):
         CryptoUtils.secure_zero_string(test_string)
         
         # Test with empty data
-        CryptoUtils.secure_zero(b"")
+        CryptoUtils.secure_zero(bytearray(b""))
         CryptoUtils.secure_zero_string("")
         
         # Test with None (should not raise)

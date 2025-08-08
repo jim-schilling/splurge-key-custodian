@@ -473,10 +473,7 @@ class TestKeyCustodianCLIUnit(unittest.TestCase):
         dangerous_inputs = [
             ("text;with;semicolons", ";"),
             ("text|with|pipes", "|"),
-            ("text&with&amps", "&"),
             ("text`with`backticks", "`"),
-            ("text$with$dollars", "$"),
-            ("text(with)parens", "("),
             ("text<with>brackets", "<"),
             ("text>with>brackets", ">"),
         ]
@@ -485,6 +482,27 @@ class TestKeyCustodianCLIUnit(unittest.TestCase):
             with self.assertRaises(ValidationError) as cm:
                 self.cli._sanitize_input(input_text)
             self.assertIn(f"dangerous character: {dangerous_char}", str(cm.exception))
+
+    def test_sanitize_input_allowed_special_chars(self):
+        """Test input sanitization with special characters that are now allowed."""
+        allowed_inputs = [
+            "text$with$dollars",
+            "text(with)parens",
+            "text&with&amps",
+            "text_with_underscores",
+            "text-with-dashes",
+            "text@with@at",
+            "text#with#hash",
+            "text%with%percent",
+            "text^with^caret",
+            "text*with*asterisk",
+            "text+with+plus",
+            "text=with=equals",
+        ]
+        
+        for input_text in allowed_inputs:
+            result = self.cli._sanitize_input(input_text)
+            self.assertEqual(result, input_text.strip())
 
     def test_sanitize_input_null_bytes(self):
         """Test input sanitization with null bytes."""

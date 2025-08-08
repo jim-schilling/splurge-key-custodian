@@ -1,0 +1,30 @@
+# Include README and documentation
+include README.md
+include CLI_README.md
+include LICENSE
+
+# Include examples
+recursive-include examples *.py
+
+# Include tests
+recursive-include tests *.py
+recursive-include tests __init__.py
+
+# Include any additional documentation
+include *.md
+include *.txt
+
+# Exclude development and build artifacts
+global-exclude *.pyc
+global-exclude *.pyo
+global-exclude *.pyd
+global-exclude __pycache__
+global-exclude .git*
+global-exclude .pytest_cache
+global-exclude .coverage
+global-exclude htmlcov
+global-exclude .venv
+global-exclude .cursor
+global-exclude *.egg-info
+global-exclude dist
+global-exclude build

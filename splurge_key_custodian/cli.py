@@ -548,20 +548,30 @@ Examples:
         Raises:
             ValidationError: If input contains dangerous characters
         """
+        if not isinstance(value, str):
+            raise ValidationError("Input must be a string")
+        
         # Check for potentially dangerous characters
-        dangerous_chars = [';', '|', '&', '`', '$', '(', ')', '<', '>']
+        # Note: $, (, ), & are allowed for password complexity and legitimate use cases
+        dangerous_chars = [';', '|', '`', '<', '>', '\\']
         for char in dangerous_chars:
             if char in value:
                 raise ValidationError(f"Input contains potentially dangerous character: {char}")
         
-        # Check for null bytes
+        # Check for null bytes first
         if '\x00' in value:
             raise ValidationError("Input contains null bytes")
+        
+        # Check for control characters
+        for char in value:
+            if ord(char) < 32 and char != '\t' and char != '\n' and char != '\r':
+                raise ValidationError(f"Input contains control character: {repr(char)}")
         
         # Limit input length
         if len(value) > 1000:
             raise ValidationError("Input too long (max 1000 characters)")
         
+        # Trim whitespace
         return value.strip()
 
     def run(self, args: Optional[list[str]] = None) -> None:

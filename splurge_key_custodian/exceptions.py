@@ -28,3 +28,15 @@ class ValidationError(KeyCustodianError):
 class MasterKeyError(KeyCustodianError):
     """Raised when master key operations fail."""
 
+
+class RateLimitError(KeyCustodianError):
+    """Raised when rate limiting is exceeded."""
+
+
+class CacheError(KeyCustodianError):
+    """Raised when cache operations fail."""
+
+
+class ConfigurationError(KeyCustodianError):
+    """Raised when configuration is invalid."""
+

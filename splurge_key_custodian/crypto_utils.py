@@ -1,6 +1,7 @@
 """Cryptographic utilities for the Splurge Key Custodian File system."""
 
 import base64
+import hmac
 import secrets
 
 from typing import Optional
@@ -24,8 +25,21 @@ class CryptoUtils:
     _SALT_SIZE = 64  # 64-byte salt
     _MIN_SALT_SIZE = 32  # Minimum salt size for security
     _B58_ALPHANUMERIC = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
-    _SPECIAL = '!@#$%^&*()_+?'
+    _SPECIAL = '!@#$%^&*()_+-='
     _B58_NUMERIC = '123456789'    
+
+    @staticmethod
+    def constant_time_compare(a: bytes, b: bytes) -> bool:
+        """Perform constant-time comparison of two byte strings.
+        
+        Args:
+            a: First byte string
+            b: Second byte string
+            
+        Returns:
+            True if strings are equal, False otherwise
+        """
+        return hmac.compare_digest(a, b)
 
     @classmethod
     def generate_base58_like_random_string(cls) -> str:
@@ -269,16 +283,16 @@ class CryptoUtils:
             raise EncryptionError(f"Key decryption failed: {e}") from e
 
     @staticmethod
-    def secure_zero(data: bytes) -> None:
+    def secure_zero(data: bytearray) -> None:
         """Securely zero sensitive data from memory.
         
         Args:
-            data: Data to zero
+            data: Data to zero (must be bytearray for in-place modification)
         """
         if data:
-            # Use a secure method to zero the data
+            # Zero the data in place
             for i in range(len(data)):
-                data = data[:i] + b'\x00' + data[i+1:]
+                data[i] = 0
     
     @staticmethod
     def secure_zero_string(data: str) -> None:
@@ -288,6 +302,6 @@ class CryptoUtils:
             data: String data to zero
         """
         if data:
-            # Convert to bytes and zero
-            data_bytes = data.encode('utf-8')
+            # Convert to bytearray and zero
+            data_bytes = bytearray(data.encode('utf-8'))
             CryptoUtils.secure_zero(data_bytes)

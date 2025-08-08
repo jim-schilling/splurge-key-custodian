@@ -10,6 +10,9 @@ import uuid
 from pathlib import Path
 from typing import Any, Optional
 
+# Configure logging
+logger = logging.getLogger(__name__)
+
 from splurge_key_custodian.base58 import Base58
 from splurge_key_custodian.crypto_utils import CryptoUtils
 from splurge_key_custodian.exceptions import (
@@ -183,6 +186,7 @@ class KeyCustodian:
         self._file_manager = FileManager(data_dir)
         self._credentials_index: Optional[CredentialsIndex] = None
         self._current_master_key: Optional[MasterKey] = None
+        self._credential_cache: dict[str, dict[str, Any]] = {}  # Cache for decrypted credentials
         
         # Rate limiting tracking
         self._failed_attempts = 0
@@ -257,7 +261,10 @@ class KeyCustodian:
                     )
                     
                     # Verify the decrypted data is what we expect (single zero byte)
-                    if decrypted_placeholder != b"\x00":
+                    if not CryptoUtils.constant_time_compare(decrypted_placeholder, b"\x00"):
+                        # Clean up sensitive data before raising exception
+                        CryptoUtils.secure_zero(bytearray(derived_master_key))
+                        CryptoUtils.secure_zero(bytearray(decrypted_placeholder))
                         self._record_failed_attempt()
                         raise MasterKeyError("Invalid master key data")
                     
@@ -265,8 +272,17 @@ class KeyCustodian:
                     self._current_master_key = master_key
                     self._reset_failed_attempts()
                     
+                    # Clean up sensitive data
+                    CryptoUtils.secure_zero(bytearray(derived_master_key))
+                    CryptoUtils.secure_zero(bytearray(decrypted_placeholder))
+                    
                 except Exception as e:
                     # If decryption fails, the password is wrong
+                    logger.warning("Failed authentication attempt", extra={
+                        "event": "auth_failed",
+                        "reason": "invalid_password",
+                        "attempts": self._failed_attempts
+                    })
                     self._record_failed_attempt()
                     raise MasterKeyError(f"Invalid master password: {e}") from e
             else:
@@ -658,6 +674,10 @@ class KeyCustodian:
             raise ValidationError("Key ID cannot contain only whitespace")
 
         try:
+            # Check cache first
+            if key_id in self._credential_cache:
+                return self._credential_cache[key_id]
+
             # Load credential file
             credential_file = self._file_manager.read_credential_file(key_id)
             if not credential_file:
@@ -689,6 +709,9 @@ class KeyCustodian:
 
             # Parse the decrypted data
             credential_data_dict = json.loads(decrypted_data.decode("utf-8"))
+
+            # Cache the result
+            self._credential_cache[key_id] = credential_data_dict
 
             return credential_data_dict
 
@@ -841,6 +864,10 @@ class KeyCustodian:
         # Delete credential file
         self._file_manager.delete_credential_file(key_id)
 
+        # Clear from cache
+        if hasattr(self, '_credential_cache') and key_id in self._credential_cache:
+            del self._credential_cache[key_id]
+
         # Update index
         if self._credentials_index:
             self._credentials_index.remove_credential(key_id)
@@ -991,3 +1018,28 @@ class KeyCustodian:
         """Reset failed attempts counter on successful authentication."""
         self._failed_attempts = 0
         self._lockout_until = 0.0
+
+    def __enter__(self) -> "KeyCustodian":
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Context manager exit with cleanup."""
+        self.cleanup()
+
+    def cleanup(self) -> None:
+        """Clean up sensitive data from memory."""
+        # Clear sensitive data
+        if hasattr(self, '_master_password'):
+            CryptoUtils.secure_zero_string(self._master_password)
+            self._master_password = None
+        
+        # Clear cache
+        if hasattr(self, '_credential_cache'):
+            self._credential_cache.clear()
+        
+        # Clear rate limiting data
+        if hasattr(self, '_failed_attempts'):
+            self._failed_attempts = 0
+            self._last_failed_attempt = 0.0
+            self._lockout_until = 0.0

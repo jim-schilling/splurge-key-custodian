@@ -85,6 +85,7 @@ class CredentialsIndex:
     """Credentials index file structure for hybrid approach."""
 
     credentials: dict[str, str] = field(default_factory=dict)  # key_id -> name mapping
+    _name_to_key_id: dict[str, str] = field(default_factory=dict, init=False)  # name -> key_id mapping for O(1) lookup
     last_updated: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def __post_init__(self) -> None:
@@ -92,6 +93,15 @@ class CredentialsIndex:
         # Parse datetime string if provided
         if isinstance(self.last_updated, str):
             self.last_updated = self._parse_datetime(self.last_updated)
+        
+        # Build reverse mapping for O(1) name lookup
+        self._build_name_mapping()
+
+    def _build_name_mapping(self) -> None:
+        """Build the reverse mapping from name to key_id."""
+        self._name_to_key_id.clear()
+        for key_id, name in self.credentials.items():
+            self._name_to_key_id[name] = key_id
 
     @staticmethod
     def _parse_datetime(value: str) -> datetime:
@@ -120,12 +130,16 @@ class CredentialsIndex:
     ) -> None:
         """Add a credential to the index."""
         self.credentials[key_id] = name
+        self._name_to_key_id[name] = key_id
         self.last_updated = datetime.now(timezone.utc)
 
     def remove_credential(self, key_id: str) -> None:
         """Remove a credential from the index."""
         if key_id in self.credentials:
+            name = self.credentials[key_id]
             del self.credentials[key_id]
+            if name in self._name_to_key_id:
+                del self._name_to_key_id[name]
             self.last_updated = datetime.now(timezone.utc)
 
     def get_name(self, key_id: str) -> Optional[str]:
@@ -134,14 +148,11 @@ class CredentialsIndex:
 
     def get_key_id(self, name: str) -> Optional[str]:
         """Get key_id by credential name."""
-        for k_id, cred_name in self.credentials.items():
-            if cred_name == name:
-                return k_id
-        return None
+        return self._name_to_key_id.get(name)
 
     def has_name(self, name: str) -> bool:
         """Check if a credential name exists."""
-        return name in self.credentials.values()
+        return name in self._name_to_key_id
 
     def update_credential_name(
         self, 
@@ -150,7 +161,12 @@ class CredentialsIndex:
     ) -> None:
         """Update the name of an existing credential."""
         if key_id in self.credentials:
+            old_name = self.credentials[key_id]
             self.credentials[key_id] = new_name
+            # Update reverse mapping
+            if old_name in self._name_to_key_id:
+                del self._name_to_key_id[old_name]
+            self._name_to_key_id[new_name] = key_id
             self.last_updated = datetime.now(timezone.utc)
 
 
