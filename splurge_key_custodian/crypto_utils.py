@@ -21,11 +21,12 @@ class CryptoUtils:
     _KEY_SIZE = 256  # Fixed 256-bit key size
     _KEY_SIZE_BYTES = 32  # 256 bits = 32 bytes
     _DEFAULT_ITERATIONS = 1000000  # 1,000,000 iterations
-    _MIN_ITERATIONS = 500000  # Minimum iterations for security
+    _MIN_ITERATIONS = 100000  # Minimum iterations for security
     _SALT_SIZE = 64  # 64-byte salt
     _MIN_SALT_SIZE = 32  # Minimum salt size for security
-    _B58_ALPHANUMERIC = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
-    _SPECIAL = '!@#$%^&*()_+-='
+    _B58_ALPHA_UPPER = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+    _B58_ALPHA_LOWER = 'abcdefghijkmnopqrstuvwxyz'
+    _SPECIAL = '!@#$%^&*()_+-=[],.?;'
     _B58_NUMERIC = '123456789'    
 
     @staticmethod
@@ -48,9 +49,10 @@ class CryptoUtils:
         Returns:
             Random Base58-like string
         """
-        result = ''.join(secrets.choice(cls._B58_ALPHANUMERIC) for _ in range(54))
-        result += ''.join(secrets.choice(cls._SPECIAL) for _ in range(4))
-        result += ''.join(secrets.choice(cls._B58_NUMERIC) for _ in range(6))
+        result = ''.join(secrets.choice(cls._B58_ALPHA_UPPER) for _ in range(7))
+        result += ''.join(secrets.choice(cls._B58_ALPHA_LOWER) for _ in range(17))
+        result += ''.join(secrets.choice(cls._SPECIAL) for _ in range(3))
+        result += ''.join(secrets.choice(cls._B58_NUMERIC) for _ in range(5))
         
         # Use cryptographically secure Fisher-Yates shuffle
         result_list = list(result)

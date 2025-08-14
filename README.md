@@ -1,24 +1,17 @@
 # Splurge Key Custodian - File Based
 
-A secure file-based key management system that stores cryptographic keys in JSON files with atomic key rotation capabilities, featuring advanced security measures, performance optimizations, and comprehensive configuration management.
+A secure file-based key management system that stores cryptographic keys in JSON files with atomic key rotation capabilities.
 
 ## Features
 
 - **Hybrid file-based storage**: Uses separate credential files and a central index for optimal performance and recovery
 - **Atomic operations**: All file operations create temporary files, then atomically replace originals
-- **Secure encryption**: All credentials are encrypted with Fernet (AES-256-CBC with HMAC-SHA256) using a master password with 64-byte salt and configurable iterations (default: 1,000,000, minimum: 500,000)
+- **Secure encryption**: All credentials are encrypted with Fernet (AES-256-CBC with HMAC-SHA256) using a master password with 64-byte salt and configurable iterations (default: 1,000,000, minimum: 100,000)
 - **Advanced security features**:
   - Constant-time comparison to prevent timing attacks
   - Secure memory zeroing for sensitive data cleanup
-  - Rate limiting for failed authentication attempts
-  - Input sanitization with configurable character restrictions
+  - Input sanitization
   - Context manager support for automatic resource cleanup
-- **Performance optimizations**:
-  - Credential caching for O(1) lookup performance
-  - O(1) credential name lookups using reverse mapping
-  - Lazy loading of credential data
-  - Configurable cache size and TTL
-- **Flexible configuration system**: Centralized configuration management with validation
 - **Unique naming**: Credential names must be unique across all stored credentials
 - **Flexible data structure**: Store any JSON-serializable data as credentials and metadata
 - **Master key encryption**: Uses a master key derived from your password to encrypt individual credentials
@@ -58,15 +51,15 @@ from splurge_key_custodian import KeyCustodian
 
 # Initialize the key custodian with default iterations (1,000,000)
 custodian = KeyCustodian(
-    master_password="YourSecureMasterPasswordWithComplexity123!@#",
+    master_password="A very long passphrase of at least 32 characters",
     data_dir="/path/to/credentials"
 )
 
-# Or initialize with custom iterations (minimum 500,000)
+# Or initialize with custom iterations (minimum 100,000)
 custodian = KeyCustodian(
-    master_password="YourSecureMasterPasswordWithComplexity123!@#",
+    master_password="A very long passphrase of at least 32 characters",
     data_dir="/path/to/credentials",
-    iterations=500000
+    iterations=100000
 )
 
 # Create a new credential
@@ -111,35 +104,11 @@ python -m splurge_key_custodian base58 -e "Hello, World!"
 python -m splurge_key_custodian base58 -d "JxF12TrwUP45BMd"
 ```
 
-## Configuration System
+## Configuration
 
-The system includes a comprehensive configuration management system with validation:
+Configuration has been simplified. Iteration and password requirements are enforced internally.
 
-```python
-from splurge_key_custodian.config import KeyCustodianConfig, DEFAULT_CONFIG
-
-# Use default configuration
-config = DEFAULT_CONFIG
-
-# Create custom configuration
-custom_config = KeyCustodianConfig(
-    max_login_attempts=10,
-    lockout_duration=600,
-    min_password_length=16,
-    enable_caching=True,
-    cache_size_limit=500,
-    atomic_write_enabled=True,
-    backup_enabled=True,
-    secure_permissions=True
-)
-```
-
-### Configuration Options
-
-- **Security settings**: Login attempts, lockout duration, password requirements, iterations
-- **Performance settings**: Caching, cache size limits, TTL
-- **File settings**: Atomic writes, backup, secure permissions
-- **Validation settings**: Input length limits, allowed control characters
+<!-- Configuration Options removed (legacy). -->
 
 ## File Structure
 
@@ -179,33 +148,18 @@ The main class for key management operations.
 KeyCustodian(master_password: str, data_dir: str, *, iterations: Optional[int] = None)
 ```
 
-- `master_password`: Master password for encrypting/decrypting keys. Must meet the following complexity requirements:
-  - At least 32 characters long
-  - Contains at least one uppercase letter (A-Z)
-  - Contains at least one lowercase letter (a-z)
-  - Contains at least one numeric digit (0-9)
-  - Contains at least one symbol character (!@#$%^&*()_+-=[]{}|;:,.<>?)
+- `master_password`: Master password for encrypting/decrypting keys. Policy: at least 32 characters.
 - `data_dir`: Directory to store key files
-- `iterations`: Number of iterations for key derivation (default: 1,000,000, minimum: 500,000)
+- `iterations`: Number of iterations for key derivation (default: 1,000,000, minimum: 100,000)
 
 **Password Requirements:**
-The master password must meet strict complexity requirements to ensure security:
 - **Minimum length**: 32 characters
-- **Character classes required**:
-  - Uppercase letters (A-Z)
-  - Lowercase letters (a-z)
-  - Numeric digits (0-9)
-  - Symbol characters (!@#$%^&*()_+-=[]{}|;:,.<>?)
 
 **Example valid passwords:**
-- `"MySecureMasterPasswordWithComplexity123!@#"`
-- `"ThisIsAValidPasswordWithAllRequirements123!@#"`
-- `"SuperLongPasswordWithMixedCaseAndSymbols456!@#"`
+- `"This is a long passphrase with at least thirty-two characters"`
 
 **Example invalid passwords:**
-- `"short"` (too short, missing character classes)
-- `"thisisalongpasswordwithlowercaseonly"` (missing uppercase, numeric, symbols)
-- `"THISISALONGPASSWORDWITHUPPERCASEONLY"` (missing lowercase, numeric, symbols)
+- `"short"` (too short)
 
 #### Context Manager Support
 
@@ -240,7 +194,7 @@ init_from_environment(
 **Parameters:**
 - `env_variable`: Name of the environment variable containing the Base58-encoded master password
 - `data_dir`: Directory to store key files
-- `iterations`: Number of iterations for key derivation (default: 1,000,000, minimum: 500,000)
+- `iterations`: Number of iterations for key derivation (default: 1,000,000, minimum: 100,000)
 
 **Returns:** KeyCustodian instance
 
@@ -255,7 +209,7 @@ from splurge_key_custodian import KeyCustodian
 from splurge_key_custodian.base58 import Base58
 
 # Encode your password to Base58
-password = "MySecurePasswordWithComplexity123!@#"
+password = "A very long passphrase of at least 32 characters"
 encoded_password = Base58.encode(password.encode('utf-8'))
 
 # Set environment variable
@@ -396,7 +350,7 @@ Manually cleanup sensitive data from memory.
 cleanup() -> None
 ```
 
-**Note:** This method is automatically called when using the context manager. It securely zeros sensitive data including master passwords and cached credentials.
+**Note:** This method is automatically called when using the context manager. It securely zeros sensitive data including master passwords.
 
 #### Properties
 
@@ -457,50 +411,8 @@ class MasterKey:
 
 1. **Constant-time comparison**: Prevents timing attacks during password validation
 2. **Secure memory zeroing**: Automatically cleans up sensitive data from memory
-3. **Rate limiting**: Protects against brute force attacks with configurable limits
-4. **Input sanitization**: Validates and sanitizes all input to prevent injection attacks
-5. **Context manager support**: Automatic cleanup of sensitive data when exiting context
-
-### Security Configuration
-
-```python
-from splurge_key_custodian.config import KeyCustodianConfig
-
-# Security-focused configuration
-secure_config = KeyCustodianConfig(
-    max_login_attempts=3,           # Strict login attempt limits
-    lockout_duration=900,           # 15-minute lockout
-    min_password_length=32,         # Strong password requirements
-    min_iterations=1000000,         # High iteration count
-    enable_caching=False,           # Disable caching for high security
-    secure_permissions=True,        # Enable secure file permissions
-    atomic_write_enabled=True,      # Ensure atomic operations
-    backup_enabled=True             # Enable automatic backups
-)
-```
-
-## Performance Optimizations
-
-### Caching System
-
-The system includes an intelligent caching mechanism:
-
-```python
-# Performance-focused configuration
-perf_config = KeyCustodianConfig(
-    enable_caching=True,            # Enable credential caching
-    cache_size_limit=1000,          # Cache up to 1000 credentials
-    cache_ttl=3600,                 # Cache for 1 hour
-    atomic_write_enabled=True,      # Maintain data integrity
-    backup_enabled=True             # Keep backups for safety
-)
-```
-
-### O(1) Lookups
-
-- **Credential name lookups**: O(1) performance using reverse mapping
-- **Credential data caching**: O(1) access to frequently used credentials
-- **Index-based operations**: Fast credential management operations
+3. **Input sanitization**: Validates and sanitizes all input to prevent injection attacks
+4. **Context manager support**: Automatic cleanup of sensitive data when exiting context
 
 ## CLI Features
 
@@ -511,7 +423,7 @@ The CLI includes comprehensive input validation:
 - **Character sanitization**: Blocks dangerous characters while allowing legitimate special characters
 - **Length limits**: Configurable input length restrictions
 - **JSON validation**: Ensures valid JSON for credential data
-- **Password complexity**: Enforces master password requirements
+- **Password policy**: Enforces minimum length requirements
 
 ### Error Handling
 
@@ -546,8 +458,7 @@ python -m splurge_key_custodian -p "password" -d /path/to/data read -n "My Accou
 5. **Expiration**: Use key expiration to enforce key lifecycle management
 6. **Index Recovery**: The system can automatically rebuild the index from credential files if needed
 7. **Memory Security**: Use context managers to ensure sensitive data is cleaned up
-8. **Rate Limiting**: Configure appropriate rate limits to prevent brute force attacks
-9. **Input Validation**: All input is validated and sanitized to prevent injection attacks
+8. **Input Validation**: All input is validated and sanitized to prevent injection attacks
 
 ## Examples
 
@@ -590,24 +501,7 @@ with KeyCustodian("password", "/path/to/data") as custodian:
     # Automatic cleanup when exiting context
 ```
 
-### Configuration Management
-
-```python
-from splurge_key_custodian.config import KeyCustodianConfig
-
-# Custom configuration for high-security environment
-config = KeyCustodianConfig(
-    max_login_attempts=3,
-    lockout_duration=1800,  # 30 minutes
-    min_password_length=40,
-    min_iterations=1500000,
-    enable_caching=False,
-    secure_permissions=True
-)
-
-# Use configuration in your application
-# (Configuration integration coming in future releases)
-```
+<!-- Configuration Management example removed (legacy). -->
 
 ### Name Uniqueness Enforcement
 
@@ -767,7 +661,7 @@ pytest tests/unit/test_crypto_utils.py
 - **Integration Tests**: Test component interactions and workflows
 - **Functional Tests**: Test end-to-end functionality and CLI operations
 - **Security Tests**: Test security features and edge cases
-- **Performance Tests**: Test caching and optimization features
+<!-- Performance tests for caching removed (legacy). -->
 
 ## Development
 
@@ -812,39 +706,7 @@ ruff check .
 mypy splurge_key_custodian/
 ```
 
-## Recent Improvements
-
-### Security Enhancements
-- **Constant-time comparison**: Prevents timing attacks during password validation
-- **Secure memory zeroing**: Automatic cleanup of sensitive data from memory
-- **Rate limiting**: Protection against brute force attacks
-- **Input sanitization**: Comprehensive input validation and sanitization
-- **Context manager support**: Automatic resource cleanup
-
-### Performance Optimizations
-- **Credential caching**: O(1) access to frequently used credentials
-- **O(1) name lookups**: Fast credential name resolution using reverse mapping
-- **Lazy loading**: Efficient memory usage for large credential stores
-- **Configurable caching**: Adjustable cache size and TTL
-
-### Configuration System
-- **Centralized configuration**: Single source of truth for all settings
-- **Validation**: Comprehensive validation of all configuration parameters
-- **Flexibility**: Easy customization for different deployment scenarios
-- **Type safety**: Full type annotations and validation
-
-### CLI Improvements
-- **Enhanced input validation**: Smart character filtering for security and usability
-- **Better error handling**: Structured error messages and graceful failure
-- **Special character support**: Allows legitimate special characters in names
-- **Comprehensive testing**: Full test coverage for CLI functionality
-
-### Testing Enhancements
-- **400+ tests**: Comprehensive test coverage across all components
-- **90%+ coverage**: High code coverage with detailed reporting
-- **Multiple test types**: Unit, integration, and functional tests
-- **Security testing**: Dedicated tests for security features
-- **Performance testing**: Tests for caching and optimization features
+<!-- Recent Improvements section removed to avoid legacy feature references. -->
 
 ## License
 

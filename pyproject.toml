@@ -25,6 +25,9 @@ dependencies = [
     "cryptography>=41.0.0",
 ]
 
+[project.scripts]
+skc = "splurge_key_custodian.cli:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",

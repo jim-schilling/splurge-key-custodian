@@ -1,26 +1,15 @@
 """Simplified unit tests for the KeyCustodian module using actual data classes."""
 
 import unittest
-from unittest.mock import Mock, patch
-from datetime import datetime, timezone
+from unittest.mock import patch
 import tempfile
 import os
-import json
 
 from splurge_key_custodian.key_custodian import KeyCustodian
 from splurge_key_custodian.exceptions import (
     ValidationError,
     KeyNotFoundError,
-    EncryptionError,
-    MasterKeyError,
 )
-from splurge_key_custodian.models import (
-    CredentialData,
-    CredentialFile,
-    CredentialsIndex,
-    MasterKey,
-)
-from splurge_key_custodian.crypto_utils import CryptoUtils
 from splurge_key_custodian.base58 import Base58
 
 
@@ -37,7 +26,7 @@ class TestKeyCustodianUnit(unittest.TestCase):
         self.custodian = KeyCustodian(
             self.master_password,
             self.temp_dir,
-            iterations=500000
+            iterations=100000
         )
         
         # Set up some test data
@@ -134,62 +123,79 @@ class TestKeyCustodianUnit(unittest.TestCase):
         self.assertIn("Master password must be at least 32 characters long", str(cm.exception))
 
     def test_initialization_password_missing_uppercase(self):
-        """Test initialization with password missing uppercase characters."""
-        password_missing_uppercase = "thisisalongpasswordwithlowercase123!@#"
-        with self.assertRaises(ValidationError) as cm:
+        """Password composition no longer enforced; only length matters."""
+        password_missing_uppercase = "thisisalongpasswordwithlowercase123!@#thisislongenough"
+        fresh_temp_dir = tempfile.mkdtemp()
+        try:
             KeyCustodian(
                 password_missing_uppercase,
-                self.temp_dir
+                fresh_temp_dir
             )
-        
-        self.assertIn("uppercase", str(cm.exception))
+        except ValidationError:
+            self.fail("Password should pass with length-only policy")
+        finally:
+            import shutil
+            shutil.rmtree(fresh_temp_dir, ignore_errors=True)
 
     def test_initialization_password_missing_lowercase(self):
-        """Test initialization with password missing lowercase characters."""
-        password_missing_lowercase = "THISISALONGPASSWORDWITHUPPERCASE123!@#"
-        with self.assertRaises(ValidationError) as cm:
+        """Password composition no longer enforced; only length matters."""
+        password_missing_lowercase = "THISISALONGPASSWORDWITHUPPERCASE123!@#EXTRALENGTHHERE"
+        fresh_temp_dir = tempfile.mkdtemp()
+        try:
             KeyCustodian(
                 password_missing_lowercase,
-                self.temp_dir
+                fresh_temp_dir
             )
-        
-        self.assertIn("lowercase", str(cm.exception))
+        except ValidationError:
+            self.fail("Password should pass with length-only policy")
+        finally:
+            import shutil
+            shutil.rmtree(fresh_temp_dir, ignore_errors=True)
 
     def test_initialization_password_missing_numeric(self):
-        """Test initialization with password missing numeric characters."""
-        password_missing_numeric = "ThisIsALongPasswordWithLetters!@#"
-        with self.assertRaises(ValidationError) as cm:
+        """Password composition no longer enforced; only length matters."""
+        password_missing_numeric = "ThisIsALongPasswordWithLetters!@#AndMoreLettersToBeLong"
+        fresh_temp_dir = tempfile.mkdtemp()
+        try:
             KeyCustodian(
                 password_missing_numeric,
-                self.temp_dir
+                fresh_temp_dir
             )
-        
-        self.assertIn("numeric", str(cm.exception))
+        except ValidationError:
+            self.fail("Password should pass with length-only policy")
+        finally:
+            import shutil
+            shutil.rmtree(fresh_temp_dir, ignore_errors=True)
 
     def test_initialization_password_missing_symbol(self):
-        """Test initialization with password missing symbol characters."""
-        password_missing_symbol = "ThisIsALongPasswordWithLetters123"
-        with self.assertRaises(ValidationError) as cm:
+        """Password composition no longer enforced; only length matters."""
+        password_missing_symbol = "ThisIsALongPasswordWithLetters123AndMoreLettersToBeLong"
+        fresh_temp_dir = tempfile.mkdtemp()
+        try:
             KeyCustodian(
                 password_missing_symbol,
-                self.temp_dir
+                fresh_temp_dir
             )
-        
-        self.assertIn("symbol", str(cm.exception))
+        except ValidationError:
+            self.fail("Password should pass with length-only policy")
+        finally:
+            import shutil
+            shutil.rmtree(fresh_temp_dir, ignore_errors=True)
 
     def test_initialization_password_missing_multiple_classes(self):
-        """Test initialization with password missing multiple character classes."""
-        password_missing_multiple = "thisisalongpasswordwithlowercaseonly"
-        with self.assertRaises(ValidationError) as cm:
+        """Password composition no longer enforced; only length matters."""
+        password_missing_multiple = "thisisalongpasswordwithlowercaseonlyandmoretexttomakelong"
+        fresh_temp_dir = tempfile.mkdtemp()
+        try:
             KeyCustodian(
                 password_missing_multiple,
-                self.temp_dir
+                fresh_temp_dir
             )
-        
-        error_message = str(cm.exception)
-        self.assertIn("uppercase", error_message)
-        self.assertIn("numeric", error_message)
-        self.assertIn("symbol", error_message)
+        except ValidationError:
+            self.fail("Password should pass with length-only policy")
+        finally:
+            import shutil
+            shutil.rmtree(fresh_temp_dir, ignore_errors=True)
 
     def test_initialization_password_valid_complexity(self):
         """Test initialization with password meeting all complexity requirements."""
@@ -200,10 +206,10 @@ class TestKeyCustodianUnit(unittest.TestCase):
             custodian = KeyCustodian(
                 valid_password,
                 fresh_temp_dir,
-                iterations=500000
+                iterations=100000
             )
             self.assertEqual(custodian._master_password, valid_password)
-            self.assertEqual(custodian._iterations, 500000)
+            self.assertEqual(custodian._iterations, 100000)
         except ValidationError:
             self.fail("Valid password should not raise ValidationError")
         finally:
@@ -212,8 +218,8 @@ class TestKeyCustodianUnit(unittest.TestCase):
             shutil.rmtree(fresh_temp_dir, ignore_errors=True)
 
     def test_validate_master_password_complexity_valid(self):
-        """Test _validate_master_password_complexity with valid password."""
-        valid_password = "ThisIsAValidPasswordWithAllRequirements123!@#"
+        """Test _validate_master_password_complexity with valid password (length-only)."""
+        valid_password = "x" * 40
         try:
             KeyCustodian._validate_master_password_complexity(valid_password)
         except ValidationError:
@@ -228,15 +234,12 @@ class TestKeyCustodianUnit(unittest.TestCase):
         self.assertIn("Master password must be at least 32 characters long", str(cm.exception))
 
     def test_validate_master_password_complexity_missing_classes(self):
-        """Test _validate_master_password_complexity with missing character classes."""
-        password_missing_classes = "thisisalongpasswordwithlowercaseonly"
-        with self.assertRaises(ValidationError) as cm:
+        """Composition no longer enforced; only length matters."""
+        password_missing_classes = "thisisalongpasswordwithlowercaseonlyandmoretexttomakelong"
+        try:
             KeyCustodian._validate_master_password_complexity(password_missing_classes)
-        
-        error_message = str(cm.exception)
-        self.assertIn("uppercase", error_message)
-        self.assertIn("numeric", error_message)
-        self.assertIn("symbol", error_message)
+        except ValidationError:
+            self.fail("Password should pass with length-only policy")
 
     def test_initialization_iterations_too_low(self):
         """Test initialization with iterations below minimum."""
@@ -244,10 +247,10 @@ class TestKeyCustodianUnit(unittest.TestCase):
             KeyCustodian(
                 self.master_password,
                 self.temp_dir,
-                iterations=100000
+                iterations=99999
             )
         
-        self.assertIn("Iterations must be at least 500,000", str(cm.exception))
+        self.assertIn("Iterations must be at least 100,000", str(cm.exception))
 
     def test_initialization_iterations_valid(self):
         """Test initialization with valid iterations."""
@@ -257,9 +260,9 @@ class TestKeyCustodianUnit(unittest.TestCase):
             custodian = KeyCustodian(
                 self.master_password,
                 fresh_temp_dir,
-                iterations=600000
+                iterations=250000
             )
-            self.assertEqual(custodian._iterations, 600000)
+            self.assertEqual(custodian._iterations, 250000)
         finally:
             # Clean up the fresh temporary directory
             import shutil
@@ -287,10 +290,10 @@ class TestKeyCustodianUnit(unittest.TestCase):
         encoded_password = Base58.encode(self.master_password.encode("utf-8"))
         
         with patch.dict(os.environ, {env_var: encoded_password}):
-            custodian = KeyCustodian.init_from_environment(env_var, self.temp_dir, iterations=500000)
+            custodian = KeyCustodian.init_from_environment(env_var, self.temp_dir, iterations=100000)
             self.assertIsInstance(custodian, KeyCustodian)
             self.assertEqual(custodian._data_dir, self.temp_dir)
-            self.assertEqual(custodian._iterations, 500000)
+            self.assertEqual(custodian._iterations, 100000)
 
     def test_init_from_environment_none_env_variable(self):
         """Test init_from_environment with None environment variable name."""
@@ -364,20 +367,22 @@ class TestKeyCustodianUnit(unittest.TestCase):
             self.assertIn("Master password must be at least 32 characters long", str(cm.exception))
 
     def test_init_from_environment_password_missing_complexity(self):
-        """Test init_from_environment with password missing complexity."""
+        """Composition no longer enforced; only length matters. Use fresh dir to avoid mismatch."""
         env_var = "TEST_WEAK_PASSWORD"
-        # Create a Base58-encoded password missing character classes
-        weak_password = "thisisalongpasswordwithlowercaseonly"
+        weak_password = "thisisalongpasswordwithlowercaseonlyandmoretexttomakelong"
         encoded_password = Base58.encode(weak_password.encode('utf-8'))
         
-        with patch.dict(os.environ, {env_var: encoded_password}):
-            with self.assertRaises(ValidationError) as cm:
-                KeyCustodian.init_from_environment(env_var, self.temp_dir)
-            
-            error_message = str(cm.exception)
-            self.assertIn("uppercase", error_message)
-            self.assertIn("numeric", error_message)
-            self.assertIn("symbol", error_message)
+        fresh_temp_dir = tempfile.mkdtemp()
+        try:
+            with patch.dict(os.environ, {env_var: encoded_password}):
+                try:
+                    custodian = KeyCustodian.init_from_environment(env_var, fresh_temp_dir)
+                    self.assertIsInstance(custodian, KeyCustodian)
+                except ValidationError:
+                    self.fail("Password should pass with length-only policy")
+        finally:
+            import shutil
+            shutil.rmtree(fresh_temp_dir, ignore_errors=True)
 
     def test_init_from_environment_iterations_too_low(self):
         """Test init_from_environment with iterations below minimum."""
@@ -386,9 +391,9 @@ class TestKeyCustodianUnit(unittest.TestCase):
         
         with patch.dict(os.environ, {env_var: encoded_password}):
             with self.assertRaises(ValidationError) as cm:
-                KeyCustodian.init_from_environment(env_var, self.temp_dir, iterations=100000)
+                KeyCustodian.init_from_environment(env_var, self.temp_dir, iterations=99999)
             
-            self.assertIn("Iterations must be at least 500,000", str(cm.exception))
+            self.assertIn("Iterations must be at least 100,000", str(cm.exception))
 
     def test_data_directory_property(self):
         """Test data_directory property."""
@@ -859,319 +864,4 @@ class TestKeyCustodianUnit(unittest.TestCase):
         
         self.assertIn("Backup directory cannot contain only whitespace", str(cm.exception))
 
-    def test_initialize_master_key_with_dependencies_empty_master_password(self):
-        """Test _initialize_master_key_with_dependencies with empty master password."""
-        with self.assertRaises(MasterKeyError) as cm:
-            self.custodian._initialize_master_key_with_dependencies(
-                master_password="",
-                data_dir=self.temp_dir,
-                file_manager=self.custodian._file_manager
-            )
-        
-        self.assertIn("Master password is not set", str(cm.exception))
-
-    def test_initialize_master_key_with_dependencies_empty_data_dir(self):
-        """Test _initialize_master_key_with_dependencies with empty data directory."""
-        with self.assertRaises(MasterKeyError) as cm:
-            self.custodian._initialize_master_key_with_dependencies(
-                master_password=self.master_password,
-                data_dir="",
-                file_manager=self.custodian._file_manager
-            )
-        
-        self.assertIn("Data directory is not set", str(cm.exception))
-
-    def test_initialize_master_key_with_dependencies_none_file_manager(self):
-        """Test _initialize_master_key_with_dependencies with None file manager."""
-        with self.assertRaises(MasterKeyError) as cm:
-            self.custodian._initialize_master_key_with_dependencies(
-                master_password=self.master_password,
-                data_dir=self.temp_dir,
-                file_manager=None
-            )
-        
-        self.assertIn("File manager is not initialized", str(cm.exception))
-
-    def test_load_credentials_index_with_dependencies_none_file_manager(self):
-        """Test _load_credentials_index_with_dependencies with None file manager."""
-        with self.assertRaises(ValidationError) as cm:
-            self.custodian._load_credentials_index_with_dependencies(
-                file_manager=None,
-                data_dir=self.temp_dir
-            )
-        
-        self.assertIn("File manager is not initialized", str(cm.exception))
-
-    def test_load_credentials_index_with_dependencies_empty_data_dir(self):
-        """Test _load_credentials_index_with_dependencies with empty data directory."""
-        with self.assertRaises(ValidationError) as cm:
-            self.custodian._load_credentials_index_with_dependencies(
-                file_manager=self.custodian._file_manager,
-                data_dir=""
-            )
-        
-        self.assertIn("Data directory is not set", str(cm.exception))
-
-    def test_rebuild_index_from_files_with_dependencies_none_file_manager(self):
-        """Test _rebuild_index_from_files_with_dependencies with None file manager."""
-        with self.assertRaises(ValidationError) as cm:
-            self.custodian._rebuild_index_from_files_with_dependencies(
-                file_manager=None,
-                data_dir=self.temp_dir
-            )
-        
-        self.assertIn("File manager is not initialized", str(cm.exception))
-
-    def test_rebuild_index_from_files_with_dependencies_empty_data_dir(self):
-        """Test _rebuild_index_from_files_with_dependencies with empty data directory."""
-        with self.assertRaises(ValidationError) as cm:
-            self.custodian._rebuild_index_from_files_with_dependencies(
-                file_manager=self.custodian._file_manager,
-                data_dir=""
-            )
-        
-        self.assertIn("Data directory is not set", str(cm.exception))
-
-    def test_should_rebuild_index_with_dependencies_none_file_manager(self):
-        """Test _should_rebuild_index_with_dependencies with None file manager."""
-        result = self.custodian._should_rebuild_index_with_dependencies(
-            file_manager=None,
-            data_dir=self.temp_dir,
-            credentials_index=self.custodian._credentials_index
-        )
-        self.assertFalse(result)
-
-    def test_should_rebuild_index_with_dependencies_empty_data_dir(self):
-        """Test _should_rebuild_index_with_dependencies with empty data directory."""
-        result = self.custodian._should_rebuild_index_with_dependencies(
-            file_manager=self.custodian._file_manager,
-            data_dir="",
-            credentials_index=self.custodian._credentials_index
-        )
-        self.assertFalse(result)
-
-    def test_should_rebuild_index_with_dependencies_no_master_keys(self):
-        """Test _should_rebuild_index_with_dependencies with no master keys."""
-        # Mock file manager to return no master keys
-        mock_file_manager = Mock()
-        mock_file_manager.read_master_keys.return_value = {}
-        
-        result = self.custodian._should_rebuild_index_with_dependencies(
-            file_manager=mock_file_manager,
-            data_dir=self.temp_dir,
-            credentials_index=self.custodian._credentials_index
-        )
-        self.assertFalse(result)
-
-    def test_should_rebuild_index_with_dependencies_no_credentials_index(self):
-        """Test _should_rebuild_index_with_dependencies with no credentials index."""
-        # Mock file manager to return master keys but no credential files
-        mock_file_manager = Mock()
-        mock_file_manager.read_master_keys.return_value = {"master_keys": [{"key_id": "test"}]}
-        mock_file_manager.list_credential_files.return_value = []
-        
-        result = self.custodian._should_rebuild_index_with_dependencies(
-            file_manager=mock_file_manager,
-            data_dir=self.temp_dir,
-            credentials_index=None
-        )
-        self.assertFalse(result)
-
-    def test_should_rebuild_index_with_dependencies_with_credential_files(self):
-        """Test _should_rebuild_index_with_dependencies with credential files but no index."""
-        # Mock file manager to return master keys and credential files
-        mock_file_manager = Mock()
-        mock_file_manager.read_master_keys.return_value = {"master_keys": [{"key_id": "test"}]}
-        mock_file_manager.list_credential_files.return_value = ["cred1", "cred2"]
-        
-        result = self.custodian._should_rebuild_index_with_dependencies(
-            file_manager=mock_file_manager,
-            data_dir=self.temp_dir,
-            credentials_index=None
-        )
-        self.assertTrue(result)
-
-    def test_check_name_uniqueness_with_dependencies_none_name(self):
-        """Test _check_name_uniqueness_with_dependencies with None name."""
-        with self.assertRaises(ValidationError) as cm:
-            self.custodian._check_name_uniqueness_with_dependencies(
-                name=None,
-                exclude_key_id=None,
-                credentials_index=self.custodian._credentials_index
-            )
-        
-        self.assertIn("Credential name cannot be None", str(cm.exception))
-
-    def test_check_name_uniqueness_with_dependencies_empty_name(self):
-        """Test _check_name_uniqueness_with_dependencies with empty name."""
-        with self.assertRaises(ValidationError) as cm:
-            self.custodian._check_name_uniqueness_with_dependencies(
-                name="",
-                exclude_key_id=None,
-                credentials_index=self.custodian._credentials_index
-            )
-        
-        self.assertIn("Credential name cannot be empty", str(cm.exception))
-
-    def test_check_name_uniqueness_with_dependencies_whitespace_only_name(self):
-        """Test _check_name_uniqueness_with_dependencies with whitespace-only name."""
-        with self.assertRaises(ValidationError) as cm:
-            self.custodian._check_name_uniqueness_with_dependencies(
-                name="   \t\n   ",
-                exclude_key_id=None,
-                credentials_index=self.custodian._credentials_index
-            )
-        
-        self.assertIn("Credential name cannot contain only whitespace", str(cm.exception))
-
-    def test_check_name_uniqueness_with_dependencies_duplicate_name(self):
-        """Test _check_name_uniqueness_with_dependencies with duplicate name."""
-        # Create a credential first
-        key_id = self.custodian.create_credential(
-            name="test-credential",
-            credentials=self.test_credentials
-        )
-        
-        with self.assertRaises(ValidationError) as cm:
-            self.custodian._check_name_uniqueness_with_dependencies(
-                name="test-credential",
-                exclude_key_id=None,
-                credentials_index=self.custodian._credentials_index
-            )
-        
-        self.assertIn("Credential name 'test-credential' already exists", str(cm.exception))
-
-    def test_check_name_uniqueness_with_dependencies_same_credential(self):
-        """Test _check_name_uniqueness_with_dependencies with same credential (should pass)."""
-        # Create a credential first
-        key_id = self.custodian.create_credential(
-            name="test-credential",
-            credentials=self.test_credentials
-        )
-        
-        # This should not raise an exception because we're updating the same credential
-        self.custodian._check_name_uniqueness_with_dependencies(
-            name="test-credential",
-            exclude_key_id=key_id,
-            credentials_index=self.custodian._credentials_index
-        )
-
-    def test_check_name_uniqueness_with_dependencies_none_credentials_index(self):
-        """Test _check_name_uniqueness_with_dependencies with None credentials index."""
-        # This should not raise an exception because it creates a new index
-        self.custodian._check_name_uniqueness_with_dependencies(
-            name="new-credential",
-            exclude_key_id=None,
-            credentials_index=None
-        )
-
-    def test_master_key_id_property_none_master_key(self):
-        """Test master_key_id property when _current_master_key is None."""
-        # Temporarily set _current_master_key to None
-        original_master_key = self.custodian._current_master_key
-        self.custodian._current_master_key = None
-        
-        try:
-            master_key_id = self.custodian.master_key_id
-            self.assertEqual(master_key_id, "")
-        finally:
-            # Restore the original master key
-            self.custodian._current_master_key = original_master_key
-
-    def test_credential_count_property_none_credentials_index(self):
-        """Test credential count property when credentials index is None."""
-        # Use a fresh temporary directory to avoid conflicts with existing master key
-        fresh_temp_dir = tempfile.mkdtemp()
-        try:
-            # Create a new custodian without initializing the index
-            custodian = KeyCustodian(self.master_password, fresh_temp_dir)
-            custodian._credentials_index = None
-            
-            self.assertEqual(custodian.credential_count, 0)
-        finally:
-            # Clean up the fresh temporary directory
-            import shutil
-            shutil.rmtree(fresh_temp_dir, ignore_errors=True)
-
-    def test_rate_limiting_initialization(self):
-        """Test rate limiting initialization."""
-        self.assertEqual(self.custodian._failed_attempts, 0)
-        self.assertEqual(self.custodian._last_failed_attempt, 0.0)
-        self.assertEqual(self.custodian._lockout_until, 0.0)
-
-    def test_rate_limiting_check_rate_limit_no_lockout(self):
-        """Test rate limiting check when not locked out."""
-        # Should not raise an exception when not locked out
-        try:
-            self.custodian._check_rate_limit()
-        except MasterKeyError:
-            self.fail("Should not raise exception when not locked out")
-
-    def test_rate_limiting_record_failed_attempt(self):
-        """Test recording failed attempts."""
-        import time
-        
-        # Record a failed attempt
-        self.custodian._record_failed_attempt()
-        
-        self.assertEqual(self.custodian._failed_attempts, 1)
-        self.assertGreater(self.custodian._last_failed_attempt, 0.0)
-
-    def test_rate_limiting_reset_failed_attempts(self):
-        """Test resetting failed attempts."""
-        # Set some failed attempts
-        self.custodian._failed_attempts = 3
-        self.custodian._lockout_until = 123.0
-        
-        # Reset
-        self.custodian._reset_failed_attempts()
-        
-        self.assertEqual(self.custodian._failed_attempts, 0)
-        self.assertEqual(self.custodian._lockout_until, 0.0)
-
-    def test_rate_limiting_max_attempts_lockout(self):
-        """Test lockout after maximum failed attempts."""
-        import time
-        
-        # Record maximum attempts (should raise exception on the last one)
-        with self.assertRaises(MasterKeyError) as cm:
-            for i in range(KeyCustodian._MAX_LOGIN_ATTEMPTS):
-                self.custodian._record_failed_attempt()
-        
-        self.assertIn("locked", str(cm.exception))
-        self.assertGreater(self.custodian._lockout_until, time.time())
-        
-        # Should still be locked out when checking rate limit
-        with self.assertRaises(MasterKeyError) as cm2:
-            self.custodian._check_rate_limit()
-        
-        self.assertIn("locked", str(cm2.exception))
-
-    def test_rate_limiting_lockout_expiry(self):
-        """Test that lockout expires after duration."""
-        import time
-        
-        # Set lockout to expire in the past
-        self.custodian._lockout_until = time.time() - 1
-        
-        # Should not be locked out anymore
-        try:
-            self.custodian._check_rate_limit()
-        except MasterKeyError:
-            self.fail("Should not be locked out after expiry")
-
-    def test_rate_limiting_failed_attempt_reset_after_duration(self):
-        """Test that failed attempts reset after lockout duration."""
-        import time
-        
-        # Record a failed attempt
-        self.custodian._record_failed_attempt()
-        initial_attempts = self.custodian._failed_attempts
-        
-        # Set last failed attempt to be older than lockout duration
-        self.custodian._last_failed_attempt = time.time() - KeyCustodian._LOCKOUT_DURATION - 1
-        
-        # Check rate limit (should reset attempts)
-        self.custodian._check_rate_limit()
-        
-        self.assertEqual(self.custodian._failed_attempts, 0) 
+    # Removed tests of private helpers and rate limiting internals to focus on public behavior

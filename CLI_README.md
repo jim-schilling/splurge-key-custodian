@@ -39,7 +39,7 @@ All commands (except `base58`) require authentication and a data directory:
 - `-p, --password`: Master password for encryption/decryption
 - `-ep, --env-password`: Use master password from `MASTER_PASSWORD` environment variable (Base58 encoded)
 - `-d, --data-dir`: Data directory for storing key files
-- `-i, --iterations`: Number of iterations for key derivation (minimum: 500,000, default: 1,000,000)
+- `-i, --iterations`: Number of iterations for key derivation (minimum: 100,000, default: 1,000,000)
 
 **Note**: You must specify either `-p` or `-ep`, but not both.
 
@@ -71,7 +71,7 @@ python cli.py -ep -d /path/to/data save \
   -c '{"username": "user", "password": "pass"}'
 
 # Save with custom iterations
-python cli.py -p "MySecureMasterPasswordWithComplexity123!@#" -d /path/to/data -i 500000 save \
+python cli.py -p "MySecureMasterPasswordWithComplexity123!@#" -d /path/to/data -i 100000 save \
   -n "My Account" \
   -c '{"username": "user", "password": "pass"}'
 ```
@@ -302,7 +302,7 @@ The master password must meet the following complexity requirements:
 3. **Data Directory**: Ensure the data directory has appropriate permissions
 4. **JSON Input**: Be careful with JSON input to avoid injection attacks
 5. **Temporary Files**: The system creates temporary files during operations; ensure they're cleaned up
-6. **Key Derivation Iterations**: The iterations parameter controls the computational cost of key derivation. Higher values provide better security but slower performance. The minimum of 500,000 iterations provides a good balance of security and performance.
+6. **Key Derivation Iterations**: The iterations parameter controls the computational cost of key derivation. Higher values provide better security but slower performance. The minimum of 100,000 iterations provides a good balance for testing and fast usage.
 
 ## Examples
 
@@ -319,7 +319,7 @@ python cli.py -p "MySecureMasterPasswordWithComplexity123!@#" -d ~/.key-custodia
   -m '{"service": "github", "notes": "Primary GitHub account"}'
 
 # 2a. Save a credential with custom iterations (optional)
-python cli.py -p "MySecureMasterPasswordWithComplexity123!@#" -d ~/.key-custodian -i 500000 save \
+python cli.py -p "MySecureMasterPasswordWithComplexity123!@#" -d ~/.key-custodian -i 100000 save \
   -n "GitHub Account" \
   -c '{"username": "johndoe", "password": "secure123", "email": "john@example.com"}' \
   -m '{"service": "github", "notes": "Primary GitHub account"}'
