@@ -24,10 +24,10 @@ class CryptoUtils:
     _MIN_ITERATIONS = 100000  # Minimum iterations for security
     _SALT_SIZE = 64  # 64-byte salt
     _MIN_SALT_SIZE = 32  # Minimum salt size for security
-    _B58_ALPHA_UPPER = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
-    _B58_ALPHA_LOWER = 'abcdefghijkmnopqrstuvwxyz'
-    _SPECIAL = '!@#$%^&*()_+-=[],.?;'
-    _B58_NUMERIC = '123456789'    
+    B58_ALPHA_UPPER = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+    B58_ALPHA_LOWER = 'abcdefghijkmnopqrstuvwxyz'
+    B58_SPECIAL = '!@#$%^&*()_+-=[],.?;'
+    B58_NUMERIC = '123456789'    
 
     @staticmethod
     def constant_time_compare(a: bytes, b: bytes) -> bool:
@@ -49,10 +49,10 @@ class CryptoUtils:
         Returns:
             Random Base58-like string
         """
-        result = ''.join(secrets.choice(cls._B58_ALPHA_UPPER) for _ in range(7))
-        result += ''.join(secrets.choice(cls._B58_ALPHA_LOWER) for _ in range(17))
-        result += ''.join(secrets.choice(cls._SPECIAL) for _ in range(3))
-        result += ''.join(secrets.choice(cls._B58_NUMERIC) for _ in range(5))
+        result = ''.join(secrets.choice(cls.B58_ALPHA_UPPER) for _ in range(7))
+        result += ''.join(secrets.choice(cls.B58_ALPHA_LOWER) for _ in range(17))
+        result += ''.join(secrets.choice(cls.B58_SPECIAL) for _ in range(3))
+        result += ''.join(secrets.choice(cls.B58_NUMERIC) for _ in range(5))
         
         # Use cryptographically secure Fisher-Yates shuffle
         result_list = list(result)

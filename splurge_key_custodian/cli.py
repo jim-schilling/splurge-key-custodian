@@ -74,9 +74,10 @@ Examples:
   # Validate master password
   python cli.py -p "my-master-password" -d /path/to/data master
 
-  # Base58 encode/decode
-  python cli.py base58 -e "Hello, World!"
-  python cli.py base58 -d "JxF12TrwUP45BMd"
+  # Base58 encode/decode (requires --advanced flag)
+  python cli.py --advanced base58 -e "Hello, World!"
+  python cli.py --advanced base58 -d "JxF12TrwUP45BMd"
+  python cli.py --advanced base58 -g
             """,
         )
 
@@ -192,7 +193,7 @@ Examples:
             "-g",
             "--generate",
             action="store_true",
-            help="Generate a 64-character cryptographically random Base58-like string and return its Base58 encoded value",
+            help="Generate a 32-character cryptographically random Base58-like string",
         )
 
         return parser
@@ -594,10 +595,9 @@ Examples:
                 raise ValidationError("Cannot specify multiple options (encode, decode, generate)")
 
             if generate:
-                # Generate a 64-byte cryptographically random key
+                # Generate a 32-character cryptographically random Base58-like string
                 random_string = CryptoUtils.generate_base58_like_random_string()
-                encoded = Base58.encode(random_string.encode("utf-8"))
-                print(encoded)
+                print(random_string)
             elif encode:
                 # Encode plaintext to Base58
                 encoded = Base58.encode(encode.encode("utf-8"))

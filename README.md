@@ -99,9 +99,10 @@ python -m splurge_key_custodian -p "my-master-password" -d /path/to/data list
 # Validate master password
 python -m splurge_key_custodian -p "my-master-password" -d /path/to/data master
 
-# Base58 encode/decode
-python -m splurge_key_custodian base58 -e "Hello, World!"
-python -m splurge_key_custodian base58 -d "JxF12TrwUP45BMd"
+# Base58 encode/decode (requires --advanced flag)
+python -m splurge_key_custodian --advanced base58 -e "Hello, World!"
+python -m splurge_key_custodian --advanced base58 -d "JxF12TrwUP45BMd"
+python -m splurge_key_custodian --advanced base58 -g
 ```
 
 ## Configuration

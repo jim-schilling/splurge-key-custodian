@@ -251,31 +251,20 @@ class TestKeyCustodianCLIUnit(unittest.TestCase):
             ])
 
         output = mock_stdout.getvalue()
-        # Should generate a Base58-encoded string
+        # Should generate a 32-character Base58-like string
         self.assertIsInstance(output.strip(), str)
-        self.assertGreater(len(output.strip()), 0)
+        self.assertEqual(len(output.strip()), 32)
         
-        # Verify it's valid Base58 by trying to decode it
-        from splurge_key_custodian.base58 import Base58
-        try:
-            decoded = Base58.decode(output.strip())
-            decoded_text = decoded.decode("utf-8")
-            # Should be 64 characters (the length of the generated string)
-            self.assertEqual(len(decoded_text), 64)
-            
-            # Verify it contains the expected character sets
-            from splurge_key_custodian.crypto_utils import CryptoUtils
-            b58_chars = set(CryptoUtils._B58_ALPHANUMERIC)
-            special_chars = set(CryptoUtils._SPECIAL)
-            numeric_chars = set(CryptoUtils._B58_NUMERIC)
-            
-            # Check that the decoded string contains characters from all expected sets
-            string_chars = set(decoded_text)
-            self.assertTrue(any(c in b58_chars for c in string_chars))
-            self.assertTrue(any(c in special_chars for c in string_chars))
-            self.assertTrue(any(c in numeric_chars for c in string_chars))
-        except Exception as e:
-            self.fail(f"Generated string is not valid Base58: {e}")
+        # Verify it contains the expected character sets
+        from splurge_key_custodian.crypto_utils import CryptoUtils
+        generated_string = output.strip()
+        
+        # Check that the generated string contains characters from all expected sets
+        string_chars = set(generated_string)
+        self.assertTrue(any(c in CryptoUtils.B58_ALPHA_UPPER for c in string_chars))
+        self.assertTrue(any(c in CryptoUtils.B58_ALPHA_LOWER for c in string_chars))
+        self.assertTrue(any(c in CryptoUtils.B58_SPECIAL for c in string_chars))
+        self.assertTrue(any(c in CryptoUtils.B58_NUMERIC for c in string_chars))
 
     def test_run_base58_both_args_error(self):
         """Test base58 command with both encode and decode args."""

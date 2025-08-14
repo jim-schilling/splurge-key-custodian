@@ -157,19 +157,23 @@ python cli.py -p "MySecureMasterPasswordWithComplexity123!@#" -d /path/to/data m
 
 #### 5. Base58 Encode/Decode (`base58`)
 
-Encode plaintext to Base58 format or decode Base58 to plaintext.
+Encode plaintext to Base58 format, decode Base58 to plaintext, or generate cryptographically secure random strings.
 
 **Required Arguments:**
 - `-encode`: Plaintext string to encode to Base58, OR
-- `-decode`: Base58 string to decode to plaintext
+- `-decode`: Base58 string to decode to plaintext, OR
+- `-generate`: Generate a 32-character cryptographically random Base58-like string
 
 **Examples:**
 ```bash
 # Encode plaintext to Base58
-python cli.py base58 -e "Hello World"
+python cli.py --advanced base58 -e "Hello World"
 
 # Decode Base58 to plaintext
-python cli.py base58 -d "JxF12TrwUP45BMd"
+python cli.py --advanced base58 -d "JxF12TrwUP45BMd"
+
+# Generate a 32-character cryptographically random Base58-like string
+python cli.py --advanced base58 -g
 ```
 
 **Encode Response:**
@@ -192,13 +196,26 @@ python cli.py base58 -d "JxF12TrwUP45BMd"
 }
 ```
 
+**Generate Response:**
+The generate command outputs the random string directly to stdout (not JSON):
+```
+d2JCZ.MVcg3it]zKc_s9vjhsvy3o3Kmp
+```
+
+**Note:** The generated string is a 32-character "Base58-like" string that includes:
+- 7 uppercase letters (A-Z, excluding O)
+- 17 lowercase letters (a-z, excluding l) 
+- 3 special characters (!@#$%^&*()_+-=[],.?;)
+- 5 numeric characters (1-9, excluding 0)
+- All characters are cryptographically shuffled for security
+
 ## Environment Password Setup
 
 To use the environment password feature:
 
 1. **Encode your master password:**
    ```bash
-   python cli.py base58 -e "YourSecureMasterPasswordWithComplexity123!@#"
+   python cli.py --advanced base58 -e "YourSecureMasterPasswordWithComplexity123!@#"
    ```
 
 2. **Set the environment variable:**
