@@ -477,6 +477,26 @@ class TestCredentialsIndex(unittest.TestCase):
         self.assertEqual(index.credentials, {"key1": "name1", "key2": "name2"})
         self.assertIsInstance(index.last_updated, datetime)
 
+    def test_credentials_index_from_dict_rebuilds_name_mapping(self):
+        """Test that CredentialsIndex from_dict properly rebuilds the _name_to_key_id mapping."""
+        data = {
+            "credentials": {"key1": "name1", "key2": "name2", "key3": "name3"},
+            "last_updated": "2023-01-01T12:00:00+00:00"
+        }
+        
+        index = CredentialsIndex.from_dict(data)
+        
+        # Verify the reverse mapping is properly built
+        self.assertEqual(index.get_key_id("name1"), "key1")
+        self.assertEqual(index.get_key_id("name2"), "key2")
+        self.assertEqual(index.get_key_id("name3"), "key3")
+        
+        # Verify has_name works correctly
+        self.assertTrue(index.has_name("name1"))
+        self.assertTrue(index.has_name("name2"))
+        self.assertTrue(index.has_name("name3"))
+        self.assertFalse(index.has_name("non-existent"))
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2) 

@@ -240,7 +240,6 @@ class KeyCustodian:
                         # Clean up sensitive data before raising exception
                         CryptoUtils.secure_zero(bytearray(derived_master_key))
                         CryptoUtils.secure_zero(bytearray(decrypted_placeholder))
-                        self._record_failed_attempt()
                         raise MasterKeyError("Invalid master key data")
                     
                     # If decryption succeeds and data is correct, the password is correct
