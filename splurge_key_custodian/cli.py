@@ -110,6 +110,7 @@ Examples:
             help="Pretty-print JSON outputs",
         )
         parser.add_argument(
+            "-x",
             "--advanced",
             action="store_true",
             help="Enable advanced/experimental commands (e.g., base58)",
@@ -228,7 +229,7 @@ Examples:
         """
         if command == "base58":
             if not self._advanced:
-                raise ValidationError("Advanced features are disabled. Re-run with --advanced to use base58.")
+                raise ValidationError("Advanced features are disabled. Re-run with -x or --advanced to use base58.")
             return
 
         if command == "data-dir":

@@ -167,13 +167,13 @@ Encode plaintext to Base58 format, decode Base58 to plaintext, or generate crypt
 **Examples:**
 ```bash
 # Encode plaintext to Base58
-python cli.py --advanced base58 -e "Hello World"
+python cli.py -x base58 -e "Hello World"
 
 # Decode Base58 to plaintext
-python cli.py --advanced base58 -d "JxF12TrwUP45BMd"
+python cli.py -x base58 -d "JxF12TrwUP45BMd"
 
 # Generate a 32-character cryptographically random Base58-like string
-python cli.py --advanced base58 -g
+python cli.py -x base58 -g
 ```
 
 **Encode Response:**
@@ -215,7 +215,7 @@ To use the environment password feature:
 
 1. **Encode your master password:**
    ```bash
-   python cli.py --advanced base58 -e "YourSecureMasterPasswordWithComplexity123!@#"
+   python cli.py -x base58 -e "YourSecureMasterPasswordWithComplexity123!@#"
    ```
 
 2. **Set the environment variable:**
