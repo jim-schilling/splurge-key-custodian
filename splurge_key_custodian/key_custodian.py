@@ -3,7 +3,6 @@
 import json
 import logging
 import os
-import secrets
 import shutil
 import uuid
 from pathlib import Path
@@ -14,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 from splurge_key_custodian.base58 import Base58
 from splurge_key_custodian.crypto_utils import CryptoUtils
-from splurge_key_custodian.constants import MIN_PASSWORD_LENGTH
+from splurge_key_custodian.constants import Constants
 from splurge_key_custodian.exceptions import (
     EncryptionError,
     KeyNotFoundError,
@@ -33,9 +32,6 @@ from splurge_key_custodian.models import (
 class KeyCustodian:
     """File-based key custodian for secure credential management."""
 
-    _MIN_PASSWORD_LENGTH = MIN_PASSWORD_LENGTH
-    _MIN_ITERATIONS = CryptoUtils._MIN_ITERATIONS  # Single source of truth
-
     @classmethod
     def _validate_master_password_complexity(cls, password: str) -> None:
         """Validate master password complexity requirements.
@@ -48,9 +44,9 @@ class KeyCustodian:
         Raises:
             ValidationError: If password length requirement is not met
         """
-        if len(password) < cls._MIN_PASSWORD_LENGTH:
+        if len(password) < Constants.MIN_PASSWORD_LENGTH():
             raise ValidationError(
-                f"Master password must be at least {cls._MIN_PASSWORD_LENGTH} characters long"
+                f"Master password must be at least {Constants.MIN_PASSWORD_LENGTH()} characters long"
             )
 
     @classmethod
@@ -160,8 +156,8 @@ class KeyCustodian:
         self._validate_master_password_complexity(master_password)
 
         # Validate iterations parameter
-        if iterations is not None and iterations < self._MIN_ITERATIONS:
-            raise ValidationError(f"Iterations must be at least {self._MIN_ITERATIONS:,}")
+        if iterations is not None and iterations < Constants.MIN_ITERATIONS():
+            raise ValidationError(f"Iterations must be at least {Constants.MIN_ITERATIONS():,}")
 
         self._master_password = master_password
         self._data_dir = data_dir

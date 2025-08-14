@@ -11,7 +11,7 @@ from splurge_key_custodian.base58 import Base58
 from splurge_key_custodian.crypto_utils import CryptoUtils
 from splurge_key_custodian.exceptions import ValidationError
 from splurge_key_custodian.key_custodian import KeyCustodian
-
+from splurge_key_custodian.constants import Constants
 
 class KeyCustodianCLI:
     """Command-line interface for the Key Custodian system."""
@@ -102,7 +102,7 @@ Examples:
             "-i",
             "--iterations",
             type=int,
-            help=f"Number of iterations for key derivation (minimum: {CryptoUtils._MIN_ITERATIONS:,}, default: {CryptoUtils._DEFAULT_ITERATIONS:,})",
+            help=f"Number of iterations for key derivation (minimum: {Constants.MIN_ITERATIONS():,}, default: {Constants.DEFAULT_ITERATIONS():,})",
         )
         parser.add_argument(
             "--pretty",

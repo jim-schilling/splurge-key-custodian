@@ -4,7 +4,7 @@
 import tempfile
 import shutil
 from splurge_key_custodian.key_custodian import KeyCustodian
-
+from splurge_key_custodian.constants import Constants
 
 def main():
     """Demonstrate iterations parameter usage."""
@@ -39,7 +39,7 @@ def main():
             custodian_custom = KeyCustodian(
                 master_password=master_password,
                 data_dir=temp_dir2,
-                iterations=100000
+                iterations=Constants.MIN_ITERATIONS()
             )
             print(f"   - Iterations: {custodian_custom._iterations}")
             
@@ -59,7 +59,7 @@ def main():
             KeyCustodian(
                 master_password=master_password,
                 data_dir=temp_dir,
-                iterations=99999  # Below minimum of 100,000
+                iterations=Constants.MIN_ITERATIONS() - 1
             )
             print("   - ERROR: Should have failed!")
         except Exception as e:
@@ -84,7 +84,7 @@ def main():
             custodian_env = KeyCustodian.init_from_environment(
                 env_variable=env_var,
                 data_dir=temp_dir3,
-                iterations=250000
+                iterations=Constants.MIN_ITERATIONS()
             )
             print(f"   - Created from environment with iterations: {custodian_env._iterations}")
         finally:

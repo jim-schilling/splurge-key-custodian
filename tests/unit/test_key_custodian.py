@@ -11,7 +11,7 @@ from splurge_key_custodian.exceptions import (
     KeyNotFoundError,
 )
 from splurge_key_custodian.base58 import Base58
-
+from splurge_key_custodian.constants import Constants
 
 class TestKeyCustodianUnit(unittest.TestCase):
     """Simplified unit tests for KeyCustodian class using actual data."""
@@ -26,7 +26,7 @@ class TestKeyCustodianUnit(unittest.TestCase):
         self.custodian = KeyCustodian(
             self.master_password,
             self.temp_dir,
-            iterations=100000
+            iterations=Constants.MIN_ITERATIONS()
         )
         
         # Set up some test data
@@ -206,10 +206,10 @@ class TestKeyCustodianUnit(unittest.TestCase):
             custodian = KeyCustodian(
                 valid_password,
                 fresh_temp_dir,
-                iterations=100000
+                iterations=Constants.MIN_ITERATIONS()
             )
             self.assertEqual(custodian._master_password, valid_password)
-            self.assertEqual(custodian._iterations, 100000)
+            self.assertEqual(custodian._iterations, Constants.MIN_ITERATIONS())
         except ValidationError:
             self.fail("Valid password should not raise ValidationError")
         finally:
@@ -290,10 +290,10 @@ class TestKeyCustodianUnit(unittest.TestCase):
         encoded_password = Base58.encode(self.master_password.encode("utf-8"))
         
         with patch.dict(os.environ, {env_var: encoded_password}):
-            custodian = KeyCustodian.init_from_environment(env_var, self.temp_dir, iterations=100000)
+            custodian = KeyCustodian.init_from_environment(env_var, self.temp_dir, iterations=Constants.MIN_ITERATIONS())
             self.assertIsInstance(custodian, KeyCustodian)
             self.assertEqual(custodian._data_dir, self.temp_dir)
-            self.assertEqual(custodian._iterations, 100000)
+            self.assertEqual(custodian._iterations, Constants.MIN_ITERATIONS())
 
     def test_init_from_environment_none_env_variable(self):
         """Test init_from_environment with None environment variable name."""
@@ -391,7 +391,7 @@ class TestKeyCustodianUnit(unittest.TestCase):
         
         with patch.dict(os.environ, {env_var: encoded_password}):
             with self.assertRaises(ValidationError) as cm:
-                KeyCustodian.init_from_environment(env_var, self.temp_dir, iterations=99999)
+                KeyCustodian.init_from_environment(env_var, self.temp_dir, iterations=Constants.MIN_ITERATIONS() - 1)
             
             self.assertIn("Iterations must be at least 100,000", str(cm.exception))
 
@@ -863,5 +863,3 @@ class TestKeyCustodianUnit(unittest.TestCase):
             self.custodian.backup_credentials("   \t\n   ")
         
         self.assertIn("Backup directory cannot contain only whitespace", str(cm.exception))
-
-    # Removed tests of private helpers and rate limiting internals to focus on public behavior
