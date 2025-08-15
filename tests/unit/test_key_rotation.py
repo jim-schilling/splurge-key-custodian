@@ -234,7 +234,7 @@ class TestKeyCustodianRotationIntegration:
         assert len(updated_credentials) == 2
         
         # Create a new custodian with the same iterations used during rotation
-        new_custodian = KeyCustodian(master_password, custodian._data_dir, iterations=1500000)
+        new_custodian = KeyCustodian(master_password, custodian.data_directory, iterations=1500000)
         
         # Verify we can read the credentials with the new custodian
         for cred in updated_credentials:
@@ -260,7 +260,7 @@ class TestKeyCustodianRotationIntegration:
         assert rotation_id is not None
         
         # Create new custodian with new password
-        new_custodian = KeyCustodian(new_password, custodian._data_dir, iterations=1500000)
+        new_custodian = KeyCustodian(new_password, custodian.data_directory, iterations=1500000)
         
         # Verify credentials are accessible with new password
         updated_credentials = new_custodian.list_credentials()

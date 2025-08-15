@@ -676,7 +676,7 @@ class KeyRotationManager:
 
         current_master_key_data = master_keys_data["master_keys"][0]
         current_salt = Base58.decode(current_master_key_data["salt"])
-        current_iterations = Constants.DEFAULT_ITERATIONS()  # Use default for now
+        current_iterations = current_master_key_data.get("iterations", Constants.DEFAULT_ITERATIONS())
 
         # Derive current master key for decryption
         current_master_key = CryptoUtils.derive_key_from_password(
@@ -983,8 +983,10 @@ class KeyRotationManager:
             logger.error("Master key rotation rollback incomplete - no credential backup available")
             logger.error("Credentials may be in an inconsistent state and may require manual recovery")
             raise KeyRotationError(
-                "Master key rotation rollback failed - credential backup not available. "
-                "Manual recovery may be required."
+                (
+                    "Master key rotation rollback failed - credential backup not available. "
+                    "Manual recovery may be required."
+                )
             )
 
     def _rollback_bulk_rotation(

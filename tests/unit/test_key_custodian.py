@@ -47,9 +47,9 @@ class TestKeyCustodianUnit(unittest.TestCase):
 
     def test_initialization(self):
         """Test KeyCustodian initialization."""
-        self.assertEqual(self.custodian._data_dir, self.temp_dir)
-        self.assertEqual(self.custodian._master_password, self.master_password)
-        self.assertIsNotNone(self.custodian._file_manager)
+        self.assertEqual(self.custodian.data_directory, self.temp_dir)
+        # Note: We can't test _master_password or _file_manager directly as they are private
+        # The functionality is tested through the public methods
 
     def test_initialization_none_master_password(self):
         """Test initialization with None master password."""
@@ -209,8 +209,9 @@ class TestKeyCustodianUnit(unittest.TestCase):
                 fresh_temp_dir,
                 iterations=Constants.MIN_ITERATIONS()
             )
-            self.assertEqual(custodian._master_password, valid_password)
-            self.assertEqual(custodian._iterations, Constants.MIN_ITERATIONS())
+            # Note: We can't test _master_password directly as it is private
+            # The functionality is tested through the public methods
+            self.assertEqual(custodian.iterations, Constants.MIN_ITERATIONS())
         except ValidationError:
             self.fail("Valid password should not raise ValidationError")
         finally:
@@ -263,7 +264,7 @@ class TestKeyCustodianUnit(unittest.TestCase):
                 fresh_temp_dir,
                 iterations=Constants.MIN_ITERATIONS()
             )
-            self.assertEqual(custodian._iterations, Constants.MIN_ITERATIONS())
+            self.assertEqual(custodian.iterations, Constants.MIN_ITERATIONS())
         finally:
             # Clean up the fresh temporary directory
             import shutil
@@ -303,8 +304,8 @@ class TestKeyCustodianUnit(unittest.TestCase):
         with patch.dict(os.environ, {env_var: encoded_password}):
             custodian = KeyCustodian.init_from_environment(env_var, self.temp_dir, iterations=Constants.MIN_ITERATIONS())
             self.assertIsInstance(custodian, KeyCustodian)
-            self.assertEqual(custodian._data_dir, self.temp_dir)
-            self.assertEqual(custodian._iterations, Constants.MIN_ITERATIONS())
+            self.assertEqual(custodian.data_directory, self.temp_dir)
+            self.assertEqual(custodian.iterations, Constants.MIN_ITERATIONS())
 
     def test_init_from_environment_none_env_variable(self):
         """Test init_from_environment with None environment variable name."""

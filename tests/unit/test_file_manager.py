@@ -27,9 +27,9 @@ class TestFileManager(unittest.TestCase):
 
     def test_initialization(self):
         """Test FileManager initialization."""
-        self.assertEqual(self.file_manager._data_dir, Path(self.temp_dir))
-        self.assertEqual(self.file_manager._master_file, Path(self.temp_dir) / "key-custodian-master.json")
-        self.assertEqual(self.file_manager._index_file, Path(self.temp_dir) / "key-custodian-index.json")
+        self.assertEqual(self.file_manager.data_directory, Path(self.temp_dir))
+        self.assertEqual(self.file_manager.master_file_path, Path(self.temp_dir) / "key-custodian-master.json")
+        self.assertEqual(self.file_manager.index_file_path, Path(self.temp_dir) / "key-custodian-index.json")
         
         # Check that directory was created
         self.assertTrue(Path(self.temp_dir).exists())
@@ -127,8 +127,8 @@ class TestFileManager(unittest.TestCase):
     def test_save_master_keys(self):
         """Test saving master keys."""
         master_keys = [
-            {"key_id": "key1", "salt": "salt1", "created_at": "2023-01-01T00:00:00Z"},
-            {"key_id": "key2", "salt": "salt2", "created_at": "2023-01-02T00:00:00Z"}
+            {"key_id": "key1", "salt": "salt1", "iterations": 100000, "created_at": "2023-01-01T00:00:00Z"},
+            {"key_id": "key2", "salt": "salt2", "iterations": 200000, "created_at": "2023-01-02T00:00:00Z"}
         ]
         
         self.file_manager.save_master_keys(master_keys)
@@ -146,7 +146,7 @@ class TestFileManager(unittest.TestCase):
     def test_read_master_keys_existing(self):
         """Test reading existing master keys."""
         master_keys = [
-            {"key_id": "key1", "salt": "salt1", "created_at": "2023-01-01T00:00:00Z"}
+            {"key_id": "key1", "salt": "salt1", "iterations": 100000, "created_at": "2023-01-01T00:00:00Z"}
         ]
         
         # Save master keys first
@@ -223,7 +223,7 @@ class TestFileManager(unittest.TestCase):
         self.file_manager.save_credential_file("test-key", credential_file)
         
         # Check that file was created
-        credential_path = self.file_manager._data_dir / "test-key.credential.json"
+        credential_path = self.file_manager.data_directory / "test-key.credential.json"
         self.assertTrue(credential_path.exists())
         
         # Check file content
@@ -262,7 +262,7 @@ class TestFileManager(unittest.TestCase):
 
     def test_read_credential_file_invalid_data(self):
         """Test reading invalid credential file data."""
-        credential_path = self.file_manager._data_dir / "test-key.credential.json"
+        credential_path = self.file_manager.data_directory / "test-key.credential.json"
         
         # Write invalid JSON
         with open(credential_path, 'w') as f:
@@ -285,7 +285,7 @@ class TestFileManager(unittest.TestCase):
         self.file_manager.save_credential_file("test-key", credential_file)
         
         # Verify file exists
-        credential_path = self.file_manager._data_dir / "test-key.credential.json"
+        credential_path = self.file_manager.data_directory / "test-key.credential.json"
         self.assertTrue(credential_path.exists())
         
         # Delete it
@@ -382,8 +382,8 @@ class TestFileManager(unittest.TestCase):
     def test_cleanup_temp_files(self):
         """Test cleaning up temporary files."""
         # Create some temp files
-        temp_file1 = self.file_manager._data_dir / "test1.temp"
-        temp_file2 = self.file_manager._data_dir / "test2.temp"
+        temp_file1 = self.file_manager.data_directory / "test1.temp"
+        temp_file2 = self.file_manager.data_directory / "test2.temp"
         
         with open(temp_file1, 'w') as f:
             f.write("temp1")
@@ -409,7 +409,7 @@ class TestFileManager(unittest.TestCase):
     def test_cleanup_temp_files_error(self):
         """Test cleaning up temp files with error."""
         # Create a temp file
-        temp_file = self.file_manager._data_dir / "test.temp"
+        temp_file = self.file_manager.data_directory / "test.temp"
         with open(temp_file, 'w') as f:
             f.write("temp")
         
@@ -514,7 +514,7 @@ class TestFileManager(unittest.TestCase):
 
     def test_delete_credential_file_error(self):
         """Test deleting credential file with error."""
-        credential_path = self.file_manager._data_dir / "test-key.credential.json"
+        credential_path = self.file_manager.data_directory / "test-key.credential.json"
         
         # Create the file
         with open(credential_path, 'w') as f:

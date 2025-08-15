@@ -405,6 +405,7 @@ class MasterKey:
     key_id: str
     credentials: str
     salt: str
+    iterations: Optional[int] = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def __post_init__(self) -> None:
@@ -432,6 +433,7 @@ class MasterKey:
             "created_at": self.created_at.isoformat(),
             "credentials": self.credentials,
             "salt": self.salt,
+            "iterations": self.iterations,
         }
 
     @classmethod
@@ -441,5 +443,6 @@ class MasterKey:
             key_id=data["key_id"],
             credentials=data["credentials"],
             salt=data["salt"],
+            iterations=data.get("iterations"),
             created_at=data.get("created_at"),
         )

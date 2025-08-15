@@ -223,12 +223,12 @@ class TestFileManagerRotation:
 
     def test_rotation_history_file_path_property(self, file_manager):
         """Test rotation history file path property."""
-        expected_path = Path(file_manager._data_dir) / "key-custodian-rotation-history.json"
+        expected_path = Path(file_manager.data_directory) / "key-custodian-rotation-history.json"
         assert file_manager.rotation_history_file_path == expected_path
 
     def test_backups_directory_property(self, file_manager):
         """Test backups directory property."""
-        expected_path = Path(file_manager._data_dir) / "rotation-backups"
+        expected_path = Path(file_manager.data_directory) / "rotation-backups"
         assert file_manager.backups_directory == expected_path
 
     def test_ensure_data_directory_creates_backups_dir(self, file_manager):
@@ -283,7 +283,7 @@ class TestFileManagerRotation:
         file_manager.save_credential_file("test", dummy_credential)
         
         # Create backup files
-        backup_path = Path(file_manager._data_dir) / "test-backup.zip"
+        backup_path = Path(file_manager.data_directory) / "test-backup.zip"
         file_manager.backup_files(backup_path)
         
         # Verify backup file was created and has content
@@ -338,8 +338,8 @@ class TestFileManagerRotation:
         """Test that save_rotation_history creates the data directory if needed."""
         # Remove data directory
         import shutil
-        if file_manager._data_dir.exists():
-            shutil.rmtree(file_manager._data_dir)
+        if file_manager.data_directory.exists():
+            shutil.rmtree(file_manager.data_directory)
         
         # Create and save rotation history
         history_entry = RotationHistory(
@@ -356,7 +356,7 @@ class TestFileManagerRotation:
         file_manager.save_rotation_history([history_entry])
         
         # Verify data directory was created
-        assert file_manager._data_dir.exists()
+        assert file_manager.data_directory.exists()
         assert file_manager.rotation_history_file_path.exists()
 
     def test_save_rotation_backup_creates_directory(self, file_manager):

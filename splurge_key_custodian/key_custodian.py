@@ -183,7 +183,7 @@ class KeyCustodian:
 
         self._master_password = master_password
         self._data_dir = data_dir
-        self._iterations = iterations or Constants.DEFAULT_ITERATIONS()
+        self._iterations = iterations
         self._file_manager = FileManager(data_dir)
         self._credentials_index: Optional[CredentialsIndex] = None
         self._current_master_key: Optional[MasterKey] = None
@@ -297,6 +297,7 @@ class KeyCustodian:
                     key_id=key_id,
                     credentials=Base58.encode(encrypted_placeholder),
                     salt=Base58.encode(salt),
+                    iterations=self._iterations,
                 )
                 self._current_master_key = master_key
 
@@ -1107,6 +1108,15 @@ class KeyCustodian:
         if not self._credentials_index:
             return 0
         return len(self._credentials_index.credentials)
+
+    @property
+    def iterations(self) -> Optional[int]:
+        """Get the iterations value used for key derivation.
+        
+        Returns:
+            The iterations value, or None if using default iterations
+        """
+        return self._iterations
 
     def __enter__(self) -> "KeyCustodian":
         """Context manager entry."""
