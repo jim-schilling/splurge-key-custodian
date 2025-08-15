@@ -21,11 +21,13 @@ from splurge_key_custodian.exceptions import (
     ValidationError,
 )
 from splurge_key_custodian.file_manager import FileManager
+from splurge_key_custodian.key_rotation import KeyRotationManager
 from splurge_key_custodian.models import (
     CredentialData,
     CredentialFile,
     CredentialsIndex,
     MasterKey,
+    RotationHistory,
 )
 
 
@@ -181,10 +183,11 @@ class KeyCustodian:
 
         self._master_password = master_password
         self._data_dir = data_dir
-        self._iterations = iterations
+        self._iterations = iterations or Constants.DEFAULT_ITERATIONS()
         self._file_manager = FileManager(data_dir)
         self._credentials_index: Optional[CredentialsIndex] = None
         self._current_master_key: Optional[MasterKey] = None
+        self._rotation_manager = KeyRotationManager(file_manager=self._file_manager)
         # Internal-only state; no caches or rate limiting retained
 
         # Initialize or load master key
@@ -943,6 +946,151 @@ class KeyCustodian:
         except Exception as e:
             raise ValidationError(f"Backup failed: {e}") from e
 
+    def rotate_master_key(
+        self,
+        *,
+        new_iterations: Optional[int] = None,
+        create_backup: bool = True,
+        backup_retention_days: Optional[int] = None
+    ) -> str:
+        """Rotate the master key by generating a new encryption key from the same password.
+
+        This operation re-encrypts all credentials with a new master key derived
+        from the same master password but with a new salt.
+
+        Args:
+            new_iterations: New iterations for key derivation (optional, defaults to current or 1,000,000)
+            create_backup: Whether to create a backup before rotation
+            backup_retention_days: Days to retain backup (optional, defaults to 30)
+
+        Returns:
+            Rotation ID for tracking the operation
+
+        Raises:
+            KeyRotationError: If rotation fails
+            ValidationError: If parameters are invalid
+        """
+        return self._rotation_manager.rotate_master_key(
+            master_password=self._master_password,
+            new_iterations=new_iterations,
+            create_backup=create_backup,
+            backup_retention_days=backup_retention_days
+        )
+
+    def change_master_password(
+        self,
+        *,
+        new_master_password: str,
+        new_iterations: Optional[int] = None,
+        create_backup: bool = True,
+        backup_retention_days: Optional[int] = None
+    ) -> str:
+        """Change the master password and rotate the master key.
+
+        This operation re-encrypts all credentials with a new master key derived
+        from the new master password.
+
+        Args:
+            new_master_password: New master password
+            new_iterations: New iterations for key derivation (optional, defaults to current or 1,000,000)
+            create_backup: Whether to create a backup before rotation
+            backup_retention_days: Days to retain backup (optional, defaults to 30)
+
+        Returns:
+            Rotation ID for tracking the operation
+
+        Raises:
+            KeyRotationError: If rotation fails
+            ValidationError: If parameters are invalid
+        """
+        return self._rotation_manager.change_master_password(
+            old_master_password=self._master_password,
+            new_master_password=new_master_password,
+            old_iterations=self._iterations,
+            new_iterations=new_iterations,
+            create_backup=create_backup,
+            backup_retention_days=backup_retention_days
+        )
+
+    def rotate_all_credentials(
+        self,
+        *,
+        iterations: Optional[int] = None,
+        create_backup: bool = True,
+        backup_retention_days: Optional[int] = None,
+        batch_size: Optional[int] = None
+    ) -> str:
+        """Rotate encryption keys for all credentials.
+
+        This operation re-encrypts all credentials with new individual keys while
+        keeping the same master key.
+
+        Args:
+            iterations: Iterations for key derivation (optional)
+            create_backup: Whether to create a backup before rotation
+            backup_retention_days: Days to retain backup (optional, defaults to 30)
+            batch_size: Number of credentials to rotate in each batch (optional)
+
+        Returns:
+            Rotation ID for tracking the operation
+
+        Raises:
+            KeyRotationError: If rotation fails
+            ValidationError: If parameters are invalid
+        """
+        return self._rotation_manager.rotate_all_credentials(
+            master_password=self._master_password,
+            iterations=iterations,
+            create_backup=create_backup,
+            backup_retention_days=backup_retention_days,
+            batch_size=batch_size
+        )
+
+    def rollback_rotation(
+        self,
+        *,
+        rotation_id: str
+    ) -> None:
+        """Rollback a key rotation operation using backup data.
+
+        Args:
+            rotation_id: ID of the rotation to rollback
+
+        Raises:
+            RotationRollbackError: If rollback fails
+            ValidationError: If parameters are invalid
+        """
+        self._rotation_manager.rollback_rotation(
+            rotation_id=rotation_id,
+            master_password=self._master_password
+        )
+
+    def get_rotation_history(
+        self,
+        *,
+        limit: Optional[int] = None
+    ) -> list[RotationHistory]:
+        """Get rotation history.
+
+        Args:
+            limit: Maximum number of history entries to return (optional)
+
+        Returns:
+            List of rotation history entries
+
+        Raises:
+            RotationHistoryError: If history retrieval fails
+        """
+        return self._rotation_manager.get_rotation_history(limit=limit)
+
+    def cleanup_expired_backups(self) -> int:
+        """Clean up expired rotation backups.
+
+        Returns:
+            Number of backups cleaned up
+        """
+        return self._rotation_manager.cleanup_expired_backups()
+
     @property
     def data_directory(self) -> str:
         """Get the data directory."""
@@ -959,8 +1107,6 @@ class KeyCustodian:
         if not self._credentials_index:
             return 0
         return len(self._credentials_index.credentials)
-
-    # No rate limiting support
 
     def __enter__(self) -> "KeyCustodian":
         """Context manager entry."""

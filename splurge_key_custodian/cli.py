@@ -74,6 +74,41 @@ Examples:
   # Validate master password
   python cli.py -p "my-master-password" -d /path/to/data master
 
+  # Rotate master key (change master password)
+  python cli.py -p "old-master-password" -d /path/to/data rotate-master \\
+    -np "new-master-password"
+
+  # Rotate master key with custom iterations
+  python cli.py -p "old-master-password" -d /path/to/data rotate-master \\
+    -np "new-master-password" -ni 2000000
+
+  # Rotate master key (same password, new encryption key)
+  python cli.py -p "my-master-password" -d /path/to/data rotate-master \\
+    -ni 2000000
+
+  # Change master password
+  python cli.py -p "old-master-password" -d /path/to/data change-password \\
+    -np "new-master-password"
+
+  # Rotate credential keys (keep same master password)
+  python cli.py -p "my-master-password" -d /path/to/data rotate-credentials
+
+  # Rotate credentials with custom batch size
+  python cli.py -p "my-master-password" -d /path/to/data rotate-credentials -bs 25
+
+  # View rotation history
+  python cli.py -p "my-master-password" -d /path/to/data history
+
+  # View last 5 rotation entries
+  python cli.py -p "my-master-password" -d /path/to/data history -l 5
+
+  # Rollback a rotation
+  python cli.py -p "my-master-password" -d /path/to/data rollback \\
+    -r "rotation-uuid-here"
+
+  # Clean up expired backups
+  python cli.py -p "my-master-password" -d /path/to/data cleanup-backups
+
   # Base58 encode/decode/generate (requires -x or--advanced flag)
   python cli.py --advanced base58 -e "Hello, World!"
   python cli.py --advanced base58 -d "JxF12TrwUP45BMd"
@@ -173,6 +208,117 @@ Examples:
         subparsers.add_parser(
             "data-dir",
             help="Print the data directory path that will be used",
+        )
+
+        # Rotate master key command
+        rotate_master_parser = subparsers.add_parser(
+            "rotate-master",
+            help="Rotate master encryption key (same password, new salt/key)",
+        )
+        rotate_master_parser.add_argument(
+            "-ni",
+            "--new-iterations",
+            type=int,
+            help="New iterations for key derivation (optional)",
+        )
+        rotate_master_parser.add_argument(
+            "--no-backup",
+            action="store_true",
+            help="Skip creating backup before rotation",
+        )
+        rotate_master_parser.add_argument(
+            "-br",
+            "--backup-retention",
+            type=int,
+            help="Days to retain backup (default: 30)",
+        )
+
+        # Change master password command
+        change_password_parser = subparsers.add_parser(
+            "change-password",
+            help="Change master password and rotate master key",
+        )
+        change_password_parser.add_argument(
+            "-np",
+            "--new-password",
+            required=True,
+            help="New master password",
+        )
+        change_password_parser.add_argument(
+            "-ni",
+            "--new-iterations",
+            type=int,
+            help="New iterations for key derivation (optional)",
+        )
+        change_password_parser.add_argument(
+            "--no-backup",
+            action="store_true",
+            help="Skip creating backup before rotation",
+        )
+        change_password_parser.add_argument(
+            "-br",
+            "--backup-retention",
+            type=int,
+            help="Days to retain backup (default: 30)",
+        )
+
+        # Rotate credentials command
+        rotate_credentials_parser = subparsers.add_parser(
+            "rotate-credentials",
+            help="Rotate encryption keys for all credentials (new individual keys)",
+        )
+        rotate_credentials_parser.add_argument(
+            "-i",
+            "--iterations",
+            type=int,
+            help="Iterations for key derivation (optional)",
+        )
+        rotate_credentials_parser.add_argument(
+            "--no-backup",
+            action="store_true",
+            help="Skip creating backup before rotation",
+        )
+        rotate_credentials_parser.add_argument(
+            "-br",
+            "--backup-retention",
+            type=int,
+            help="Days to retain backup (default: 30)",
+        )
+        rotate_credentials_parser.add_argument(
+            "-bs",
+            "--batch-size",
+            type=int,
+            help="Number of credentials to rotate in each batch (optional)",
+        )
+
+        # Rollback rotation command
+        rollback_parser = subparsers.add_parser(
+            "rollback",
+            help="Rollback a key rotation operation",
+        )
+        rollback_parser.add_argument(
+            "-r",
+            "--rotation-id",
+            required=True,
+            help="Rotation ID to rollback",
+        )
+
+        # Rotation history command
+        history_parser = subparsers.add_parser(
+            "history",
+            help="View rotation history",
+        )
+        history_parser.add_argument(
+            "-l",
+            "--limit",
+            type=int,
+            help="Maximum number of history entries to show (optional)",
+        )
+
+        # Cleanup backups command
+        subparsers.add_parser(
+            "cleanup-backups",
+            help="Clean up expired rotation backups",
         )
 
         # Base58 command
@@ -630,6 +776,355 @@ Examples:
         except Exception as e:
             self._print_error(message=str(e), code="unexpected_error")
 
+    def _handle_rotate_master(self, args: argparse.Namespace) -> None:
+        """Handle rotate-master command."""
+        self._handle_rotate_master_with_dependencies(
+            new_iterations=args.new_iterations,
+            create_backup=not args.no_backup,
+            backup_retention_days=args.backup_retention,
+            env_password=args.env_password,
+            password=args.password,
+            data_dir=args.data_dir,
+            iterations=args.iterations
+        )
+
+    def _handle_rotate_master_with_dependencies(
+        self,
+        *,
+        new_iterations: Optional[int],
+        create_backup: bool,
+        backup_retention_days: Optional[int],
+        env_password: Optional[str],
+        password: Optional[str],
+        data_dir: str,
+        iterations: Optional[int] = None
+    ) -> None:
+        """Handle rotate-master command with explicit dependencies.
+
+        Args:
+            new_iterations: New iterations for key derivation
+            create_backup: Whether to create backup
+            backup_retention_days: Days to retain backup
+            env_password: Environment variable name containing master password
+            password: Master password
+            data_dir: Directory to store key files
+            iterations: Current iterations for key derivation
+        """
+        try:
+            custodian = self._get_custodian_with_dependencies(
+                env_password=env_password,
+                password=password,
+                data_dir=data_dir,
+                iterations=iterations
+            )
+
+            rotation_id = custodian.rotate_master_key(
+                new_iterations=new_iterations,
+                create_backup=create_backup,
+                backup_retention_days=backup_retention_days
+            )
+
+            self._print_json({
+                "success": True,
+                "command": "rotate-master",
+                "rotation_id": rotation_id,
+                "message": "Master key rotation completed successfully",
+            })
+
+        except ValidationError as e:
+            self._print_error(message=str(e), code="validation_error")
+        except Exception as e:
+            self._print_error(message=str(e), code="unexpected_error")
+
+    def _handle_change_password(self, args: argparse.Namespace) -> None:
+        """Handle change-password command."""
+        self._handle_change_password_with_dependencies(
+            new_password=args.new_password,
+            new_iterations=args.new_iterations,
+            create_backup=not args.no_backup,
+            backup_retention_days=args.backup_retention,
+            env_password=args.env_password,
+            password=args.password,
+            data_dir=args.data_dir,
+            iterations=args.iterations
+        )
+
+    def _handle_change_password_with_dependencies(
+        self,
+        *,
+        new_password: str,
+        new_iterations: Optional[int],
+        create_backup: bool,
+        backup_retention_days: Optional[int],
+        env_password: Optional[str],
+        password: Optional[str],
+        data_dir: str,
+        iterations: Optional[int] = None
+    ) -> None:
+        """Handle change-password command with explicit dependencies.
+
+        Args:
+            new_password: New master password
+            new_iterations: New iterations for key derivation
+            create_backup: Whether to create backup
+            backup_retention_days: Days to retain backup
+            env_password: Environment variable name containing master password
+            password: Master password
+            data_dir: Directory to store key files
+            iterations: Current iterations for key derivation
+        """
+        try:
+            # Sanitize inputs
+            new_password = self._sanitize_input(new_password)
+            
+            custodian = self._get_custodian_with_dependencies(
+                env_password=env_password,
+                password=password,
+                data_dir=data_dir,
+                iterations=iterations
+            )
+
+            rotation_id = custodian.change_master_password(
+                new_master_password=new_password,
+                new_iterations=new_iterations,
+                create_backup=create_backup,
+                backup_retention_days=backup_retention_days
+            )
+
+            self._print_json({
+                "success": True,
+                "command": "change-password",
+                "rotation_id": rotation_id,
+                "message": "Master password changed and key rotated successfully",
+            })
+
+        except ValidationError as e:
+            self._print_error(message=str(e), code="validation_error")
+        except Exception as e:
+            self._print_error(message=str(e), code="unexpected_error")
+
+    def _handle_rotate_credentials(self, args: argparse.Namespace) -> None:
+        """Handle rotate-credentials command."""
+        self._handle_rotate_credentials_with_dependencies(
+            iterations=args.iterations,
+            create_backup=not args.no_backup,
+            backup_retention_days=args.backup_retention,
+            batch_size=args.batch_size,
+            env_password=args.env_password,
+            password=args.password,
+            data_dir=args.data_dir
+        )
+
+    def _handle_rotate_credentials_with_dependencies(
+        self,
+        *,
+        iterations: Optional[int],
+        create_backup: bool,
+        backup_retention_days: Optional[int],
+        batch_size: Optional[int],
+        env_password: Optional[str],
+        password: Optional[str],
+        data_dir: str
+    ) -> None:
+        """Handle rotate-credentials command with explicit dependencies.
+
+        Args:
+            iterations: Iterations for key derivation
+            create_backup: Whether to create backup
+            backup_retention_days: Days to retain backup
+            batch_size: Number of credentials to rotate in each batch
+            env_password: Environment variable name containing master password
+            password: Master password
+            data_dir: Directory to store key files
+        """
+        try:
+            custodian = self._get_custodian_with_dependencies(
+                env_password=env_password,
+                password=password,
+                data_dir=data_dir,
+                iterations=iterations
+            )
+
+            rotation_id = custodian.rotate_all_credentials(
+                iterations=iterations,
+                create_backup=create_backup,
+                backup_retention_days=backup_retention_days,
+                batch_size=batch_size
+            )
+
+            self._print_json({
+                "success": True,
+                "command": "rotate-credentials",
+                "rotation_id": rotation_id,
+                "message": "Credential rotation completed successfully",
+            })
+
+        except ValidationError as e:
+            self._print_error(message=str(e), code="validation_error")
+        except Exception as e:
+            self._print_error(message=str(e), code="unexpected_error")
+
+    def _handle_rollback(self, args: argparse.Namespace) -> None:
+        """Handle rollback command."""
+        self._handle_rollback_with_dependencies(
+            rotation_id=args.rotation_id,
+            env_password=args.env_password,
+            password=args.password,
+            data_dir=args.data_dir,
+            iterations=args.iterations
+        )
+
+    def _handle_rollback_with_dependencies(
+        self,
+        *,
+        rotation_id: str,
+        env_password: Optional[str],
+        password: Optional[str],
+        data_dir: str,
+        iterations: Optional[int] = None
+    ) -> None:
+        """Handle rollback command with explicit dependencies.
+
+        Args:
+            rotation_id: Rotation ID to rollback
+            env_password: Environment variable name containing master password
+            password: Master password
+            data_dir: Directory to store key files
+            iterations: Iterations for key derivation
+        """
+        try:
+            custodian = self._get_custodian_with_dependencies(
+                env_password=env_password,
+                password=password,
+                data_dir=data_dir,
+                iterations=iterations
+            )
+
+            custodian.rollback_rotation(rotation_id=rotation_id)
+
+            self._print_json({
+                "success": True,
+                "command": "rollback",
+                "rotation_id": rotation_id,
+                "message": "Rotation rollback completed successfully",
+            })
+
+        except ValidationError as e:
+            self._print_error(message=str(e), code="validation_error")
+        except Exception as e:
+            self._print_error(message=str(e), code="unexpected_error")
+
+    def _handle_history(self, args: argparse.Namespace) -> None:
+        """Handle history command."""
+        self._handle_history_with_dependencies(
+            limit=args.limit,
+            env_password=args.env_password,
+            password=args.password,
+            data_dir=args.data_dir,
+            iterations=args.iterations
+        )
+
+    def _handle_history_with_dependencies(
+        self,
+        *,
+        limit: Optional[int],
+        env_password: Optional[str],
+        password: Optional[str],
+        data_dir: str,
+        iterations: Optional[int] = None
+    ) -> None:
+        """Handle history command with explicit dependencies.
+
+        Args:
+            limit: Maximum number of history entries to show
+            env_password: Environment variable name containing master password
+            password: Master password
+            data_dir: Directory to store key files
+            iterations: Iterations for key derivation
+        """
+        try:
+            custodian = self._get_custodian_with_dependencies(
+                env_password=env_password,
+                password=password,
+                data_dir=data_dir,
+                iterations=iterations
+            )
+
+            history = custodian.get_rotation_history(limit=limit)
+
+            # Convert history objects to dictionaries for JSON serialization
+            history_data = []
+            for entry in history:
+                history_data.append({
+                    "rotation_id": entry.rotation_id,
+                    "rotation_type": entry.rotation_type,
+                    "target_key_id": entry.target_key_id,
+                    "old_master_key_id": entry.old_master_key_id,
+                    "new_master_key_id": entry.new_master_key_id,
+                    "affected_credentials_count": len(entry.affected_credentials),
+                    "created_at": entry.created_at.isoformat(),
+                    "metadata": entry.metadata,
+                })
+
+            self._print_json({
+                "success": True,
+                "command": "history",
+                "count": len(history_data),
+                "history": history_data,
+            })
+
+        except ValidationError as e:
+            self._print_error(message=str(e), code="validation_error")
+        except Exception as e:
+            self._print_error(message=str(e), code="unexpected_error")
+
+    def _handle_cleanup_backups(self, args: argparse.Namespace) -> None:
+        """Handle cleanup-backups command."""
+        self._handle_cleanup_backups_with_dependencies(
+            env_password=args.env_password,
+            password=args.password,
+            data_dir=args.data_dir,
+            iterations=args.iterations
+        )
+
+    def _handle_cleanup_backups_with_dependencies(
+        self,
+        *,
+        env_password: Optional[str],
+        password: Optional[str],
+        data_dir: str,
+        iterations: Optional[int] = None
+    ) -> None:
+        """Handle cleanup-backups command with explicit dependencies.
+
+        Args:
+            env_password: Environment variable name containing master password
+            password: Master password
+            data_dir: Directory to store key files
+            iterations: Iterations for key derivation
+        """
+        try:
+            custodian = self._get_custodian_with_dependencies(
+                env_password=env_password,
+                password=password,
+                data_dir=data_dir,
+                iterations=iterations
+            )
+
+            cleaned_count = custodian.cleanup_expired_backups()
+
+            self._print_json({
+                "success": True,
+                "command": "cleanup-backups",
+                "cleaned_count": cleaned_count,
+                "message": f"Cleaned up {cleaned_count} expired backup(s)",
+            })
+
+        except ValidationError as e:
+            self._print_error(message=str(e), code="validation_error")
+        except Exception as e:
+            self._print_error(message=str(e), code="unexpected_error")
+
     def _sanitize_input(self, value: str) -> str:
         """Sanitize input to prevent injection attacks.
         
@@ -696,6 +1191,18 @@ Examples:
                     "command": "data-dir",
                     "data_dir": parsed_args.data_dir,
                 })
+            elif parsed_args.command == "rotate-master":
+                self._handle_rotate_master(parsed_args)
+            elif parsed_args.command == "change-password":
+                self._handle_change_password(parsed_args)
+            elif parsed_args.command == "rotate-credentials":
+                self._handle_rotate_credentials(parsed_args)
+            elif parsed_args.command == "rollback":
+                self._handle_rollback(parsed_args)
+            elif parsed_args.command == "history":
+                self._handle_history(parsed_args)
+            elif parsed_args.command == "cleanup-backups":
+                self._handle_cleanup_backups(parsed_args)
             elif parsed_args.command == "base58":
                 self._handle_base58(parsed_args)
             else:

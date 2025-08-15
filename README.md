@@ -6,7 +6,7 @@ A secure file-based key management system that stores cryptographic keys in JSON
 
 - **Hybrid file-based storage**: Uses separate credential files and a central index for optimal performance and recovery
 - **Atomic operations**: All file operations create temporary files, then atomically replace originals
-- **Secure encryption**: All credentials are encrypted with Fernet (AES-256-CBC with HMAC-SHA256) using a master password with 64-byte salt and configurable iterations (default: 1,000,000, minimum: 100,000)
+- **Secure encryption**: All credentials are encrypted with Fernet (AES-256-CBC with HMAC-SHA256) using a master password with 64-byte salt and configurable iterations (default: 500,000, minimum: 100,000)
 - **Advanced security features**:
   - Constant-time comparison to prevent timing attacks
   - Secure memory zeroing for sensitive data cleanup
@@ -20,6 +20,7 @@ A secure file-based key management system that stores cryptographic keys in JSON
 - **Environment variable support**: Load master password from environment variables with Base58 encoding
 - **Comprehensive CLI**: Full command-line interface with input validation and error handling
 - **Extensive testing**: 400+ tests with 90%+ code coverage across unit, integration, and functional tests
+- **Key rotation**: Comprehensive key rotation capabilities with atomic operations, backup and rollback support
 
 ## Installation
 
@@ -79,31 +80,194 @@ credential_info = custodian.find_credential_by_name("Production API")
 all_credentials = custodian.list_credentials()
 ```
 
-### Command Line Interface
+## Command Line Interface
+
+The library provides a command-line interface for all operations:
 
 ```bash
-# Save credentials with master password
-python -m splurge_key_custodian -p "my-master-password" -d /path/to/data save -n "My Account" \
-  -c '{"username": "user", "password": "pass"}'
+# Basic usage
+python -m splurge_key_custodian [options] <command> [command-options]
 
-# Save credentials with environment master password
-python -m splurge_key_custodian -ep SPLURGE_MASTER_PASSWORD -d /path/to/data save -n "My Account" \
-  -c '{"username": "user", "password": "pass"}'
+# Create credentials
+python -m splurge_key_custodian -p "my-master-password" -d /path/to/data create \
+  -n "GitHub Account" \
+  -c '{"username": "johndoe", "password": "secret123"}' \
+  -m '{"service": "github"}'
 
-# Read credentials
-python -m splurge_key_custodian -p "my-master-password" -d /path/to/data read -n "My Account"
-
-# List all credentials
+# List credentials
 python -m splurge_key_custodian -p "my-master-password" -d /path/to/data list
 
-# Validate master password
-python -m splurge_key_custodian -p "my-master-password" -d /path/to/data master
+# Read a specific credential
+python -m splurge_key_custodian -p "my-master-password" -d /path/to/data read \
+  -k "credential-key-id"
 
-# Base58 encode/decode/generate (requires -x or --advanced flag)
-python -m splurge_key_custodian -x base58 -e "Hello, World!"
-python -m splurge_key_custodian -x base58 -d "JxF12TrwUP45BMd"
-python -m splurge_key_custodian -x base58 -g 48
+# Update a credential
+python -m splurge_key_custodian -p "my-master-password" -d /path/to/data update \
+  -k "credential-key-id" \
+  -c '{"username": "johndoe", "password": "new-secret123"}'
+
+# Delete a credential
+python -m splurge_key_custodian -p "my-master-password" -d /path/to/data delete \
+  -k "credential-key-id"
+
+# Backup all data
+python -m splurge_key_custodian -p "my-master-password" -d /path/to/data backup \
+  -o /path/to/backup.zip
 ```
+
+### Key Rotation CLI Examples
+
+#### Master Key Rotation (Same Password, New Encryption Key)
+
+```bash
+# Rotate master key with default iterations (500,000)
+python -m splurge_key_custodian -p "my-master-password" -d /path/to/data rotate-master
+
+# Rotate master key with custom iterations
+python -m splurge_key_custodian -p "my-master-password" -d /path/to/data rotate-master \
+  -ni 1500000
+
+# Rotate master key without creating backup (not recommended)
+python -m splurge_key_custodian -p "my-master-password" -d /path/to/data rotate-master \
+  --no-backup
+
+# Rotate master key with custom backup retention
+python -m splurge_key_custodian -p "my-master-password" -d /path/to/data rotate-master \
+  -ni 1500000 \
+  -br 14
+```
+
+#### Master Password Change
+
+```bash
+# Change master password with default iterations
+python -m splurge_key_custodian -p "old-master-password" -d /path/to/data change-password \
+  -np "new-master-password"
+
+# Change master password with custom iterations
+python -m splurge_key_custodian -p "old-master-password" -d /path/to/data change-password \
+  -np "new-master-password" \
+  -ni 1500000
+
+# Change master password without backup (not recommended)
+python -m splurge_key_custodian -p "old-master-password" -d /path/to/data change-password \
+  -np "new-master-password" \
+  --no-backup
+
+# Change master password with custom backup retention
+python -m splurge_key_custodian -p "old-master-password" -d /path/to/data change-password \
+  -np "new-master-password" \
+  -ni 1500000 \
+  -br 14
+```
+
+#### Bulk Credential Rotation
+
+```bash
+# Rotate credential keys with default settings
+python -m splurge_key_custodian -p "my-master-password" -d /path/to/data rotate-credentials
+
+# Rotate credential keys with custom iterations
+python -m splurge_key_custodian -p "my-master-password" -d /path/to/data rotate-credentials \
+  -i 1500000
+
+# Rotate credential keys with custom batch size
+python -m splurge_key_custodian -p "my-master-password" -d /path/to/data rotate-credentials \
+  -bs 50
+
+# Rotate credential keys without backup (not recommended)
+python -m splurge_key_custodian -p "my-master-password" -d /path/to/data rotate-credentials \
+  --no-backup
+
+# Rotate credential keys with custom settings
+python -m splurge_key_custodian -p "my-master-password" -d /path/to/data rotate-credentials \
+  -i 1500000 \
+  -bs 25 \
+  -br 14
+```
+
+#### Rotation Management
+
+```bash
+# View rotation history
+python -m splurge_key_custodian -p "my-master-password" -d /path/to/data history
+
+# View last 10 rotation entries
+python -m splurge_key_custodian -p "my-master-password" -d /path/to/data history \
+  -l 10
+
+# Rollback a specific rotation (use with caution!)
+python -m splurge_key_custodian -p "my-master-password" -d /path/to/data rollback \
+  -r "rotation-id-here"
+
+# Clean up expired backups
+python -m splurge_key_custodian -p "my-master-password" -d /path/to/data cleanup-backups
+```
+
+#### Using Environment Variables for Passwords
+
+```bash
+# Set master password as environment variable
+export MASTER_PASSWORD="my-secure-master-password"
+
+# Use environment variable for master password
+python -m splurge_key_custodian -e MASTER_PASSWORD -d /path/to/data rotate-master
+
+# Use environment variable for master password change
+python -m splurge_key_custodian -e MASTER_PASSWORD -d /path/to/data change-password \
+  -np "new-master-password"
+```
+
+#### Complete Workflow Example
+
+```bash
+# 1. Create initial credentials
+python -m splurge_key_custodian -p "initial-password" -d /path/to/data create \
+  -n "GitHub Account" \
+  -c '{"username": "johndoe", "password": "secret123"}'
+
+# 2. Rotate master key (same password, new encryption key)
+python -m splurge_key_custodian -p "initial-password" -d /path/to/data rotate-master \
+  -ni 1500000
+
+# 3. Verify credentials still work with same password
+python -m splurge_key_custodian -p "initial-password" -d /path/to/data list
+
+# 4. Change master password
+python -m splurge_key_custodian -p "initial-password" -d /path/to/data change-password \
+  -np "new-secure-password" \
+  -ni 1500000
+
+# 5. Verify credentials work with new password
+python -m splurge_key_custodian -p "new-secure-password" -d /path/to/data list
+
+# 6. View rotation history
+python -m splurge_key_custodian -p "new-secure-password" -d /path/to/data history
+
+# 7. Clean up expired backups
+python -m splurge_key_custodian -p "new-secure-password" -d /path/to/data cleanup-backups
+```
+
+### CLI Command Reference
+
+| Command | Description | Key Options |
+|---------|-------------|-------------|
+| `rotate-master` | Rotate master key (same password, new encryption key) | `-ni, --new-iterations`, `--no-backup`, `-br, --backup-retention` |
+| `change-password` | Change master password and rotate master key | `-np, --new-password`, `-ni, --new-iterations`, `--no-backup`, `-br, --backup-retention` |
+| `rotate-credentials` | Rotate credential keys (bulk rotation) | `-i, --iterations`, `-bs, --batch-size`, `--no-backup`, `-br, --backup-retention` |
+| `rollback` | Rollback a specific rotation operation | `-r, --rotation-id` |
+| `history` | View rotation history | `-l, --limit` |
+| `cleanup-backups` | Clean up expired rotation backups | None |
+
+### Important Notes
+
+- **Atomic Operations**: All key rotation operations are atomic - they either complete successfully or are fully rolled back, preventing partial failures.
+- **Backup Creation**: All rotation operations create backups by default. Use `--no-backup` only in testing environments.
+- **Iterations**: Higher iterations provide better security but slower performance. Default is 1,000,000.
+- **Batch Size**: For bulk rotation, larger batch sizes are faster but use more memory. Default is 25.
+- **Backup Retention**: Backups are automatically cleaned up after the retention period. Default is 30 days.
+- **Password Complexity**: New master passwords must meet complexity requirements (32+ characters, mixed case, numbers, special characters).
+- **Rollback Safety**: Rollback operations restore the previous state but may not be available if backups have expired.
 
 ## Configuration
 
@@ -356,6 +520,191 @@ cleanup() -> None
 
 **Note:** This method is automatically called when using the context manager. It securely zeros sensitive data including master passwords.
 
+#### Key Rotation Methods
+
+The KeyCustodian provides comprehensive key rotation capabilities for security maintenance.
+
+##### rotate_master_key()
+
+Rotate the master encryption key by generating a new key from the same master password. This operation re-encrypts all credentials with a new master key derived from the same password but with a new salt.
+
+```python
+rotate_master_key(
+    *,
+    new_iterations: Optional[int] = None,
+    create_backup: bool = True,
+    backup_retention_days: Optional[int] = None
+) -> str
+```
+
+**Parameters:**
+- `new_iterations`: New iterations for key derivation (optional, defaults to current or 1,000,000)
+- `create_backup`: Whether to create a backup before rotation (default: True)
+- `backup_retention_days`: Days to retain backup (optional, defaults to 30)
+
+**Returns:** Rotation ID for tracking the operation
+
+**Raises:** `KeyRotationError` if rotation fails, `ValidationError` if parameters are invalid
+
+**Example:**
+```python
+# Rotate master key (same password, new encryption key)
+rotation_id = custodian.rotate_master_key(
+    new_iterations=1500000,  # Increase iterations for better security
+    create_backup=True,
+    backup_retention_days=7
+)
+print(f"Master key rotation completed: {rotation_id}")
+
+# Access with same password but new iterations
+new_custodian = KeyCustodian("same-password", "/path/to/data", iterations=1500000)
+```
+
+##### change_master_password()
+
+Change the master password and rotate the master key. This operation re-encrypts all credentials with a new master key derived from the new master password.
+
+```python
+change_master_password(
+    *,
+    new_master_password: str,
+    new_iterations: Optional[int] = None,
+    create_backup: bool = True,
+    backup_retention_days: Optional[int] = None
+) -> str
+```
+
+**Parameters:**
+- `new_master_password`: New master password (must meet complexity requirements)
+- `new_iterations`: New iterations for key derivation (optional, defaults to current or 1,000,000)
+- `create_backup`: Whether to create a backup before rotation (default: True)
+- `backup_retention_days`: Days to retain backup (optional, defaults to 30)
+
+**Returns:** Rotation ID for tracking the operation
+
+**Raises:** `KeyRotationError` if rotation fails, `ValidationError` if parameters are invalid
+
+**Example:**
+```python
+# Change master password
+rotation_id = custodian.change_master_password(
+    new_master_password="NewSecureMasterPassword456!@#",
+    new_iterations=1500000,  # Increase iterations for better security
+    create_backup=True,
+    backup_retention_days=7
+)
+print(f"Master password change completed: {rotation_id}")
+
+# Access with new password
+new_custodian = KeyCustodian("new-password", "/path/to/data", iterations=1500000)
+```
+
+##### rotate_all_credentials()
+
+Rotate encryption keys for all credentials. This operation re-encrypts all credentials with new individual keys while keeping the same master key.
+
+```python
+rotate_all_credentials(
+    *,
+    iterations: Optional[int] = None,
+    create_backup: bool = True,
+    backup_retention_days: Optional[int] = None,
+    batch_size: Optional[int] = None
+) -> str
+```
+
+**Parameters:**
+- `iterations`: Iterations for key derivation (optional)
+- `create_backup`: Whether to create a backup before rotation (default: True)
+- `backup_retention_days`: Days to retain backup (optional, defaults to 30)
+- `batch_size`: Number of credentials to rotate in each batch (optional, defaults to 50)
+
+**Returns:** Rotation ID for tracking the operation
+
+**Raises:** `KeyRotationError` if rotation fails, `ValidationError` if parameters are invalid
+
+**Example:**
+```python
+# Rotate all credential keys
+rotation_id = custodian.rotate_all_credentials(
+    create_backup=True,
+    backup_retention_days=7,
+    batch_size=25
+)
+print(f"Bulk credential rotation completed: {rotation_id}")
+```
+
+##### rollback_rotation()
+
+Rollback a key rotation operation using backup data.
+
+```python
+rollback_rotation(
+    *,
+    rotation_id: str
+) -> None
+```
+
+**Parameters:**
+- `rotation_id`: ID of the rotation to rollback
+
+**Raises:** `RotationRollbackError` if rollback fails, `ValidationError` if parameters are invalid
+
+**Example:**
+```python
+# Rollback a rotation
+try:
+    custodian.rollback_rotation(rotation_id="rotation-uuid-here")
+    print("Rotation rollback completed successfully")
+except RotationRollbackError as e:
+    print(f"Rollback failed: {e}")
+```
+
+##### get_rotation_history()
+
+Get rotation history for audit and tracking purposes.
+
+```python
+get_rotation_history(
+    *,
+    limit: Optional[int] = None
+) -> List[RotationHistory]
+```
+
+**Parameters:**
+- `limit`: Maximum number of history entries to return (optional)
+
+**Returns:** List of rotation history entries
+
+**Raises:** `RotationHistoryError` if history retrieval fails
+
+**Example:**
+```python
+# Get recent rotation history
+history = custodian.get_rotation_history(limit=10)
+for entry in history:
+    print(f"{entry.rotation_type} rotation: {entry.rotation_id}")
+    print(f"  Created: {entry.created_at}")
+    print(f"  Affected credentials: {len(entry.affected_credentials)}")
+```
+
+##### cleanup_expired_backups()
+
+Clean up expired rotation backups to free up storage space.
+
+```python
+cleanup_expired_backups() -> int
+```
+
+**Returns:** Number of backups cleaned up
+
+**Example:**
+```python
+# Clean up expired backups
+cleaned_count = custodian.cleanup_expired_backups()
+print(f"Cleaned up {cleaned_count} expired backup(s)")
+```
+
 #### Properties
 
 - `data_directory`: Get the data directory path
@@ -572,6 +921,62 @@ for cred in all_credentials:
 custodian.rebuild_index()
 ```
 
+### Key Rotation
+
+```python
+# Rotate master key (same password, new encryption key)
+rotation_id = custodian.rotate_master_key(
+    new_iterations=1500000,  # Increase iterations for better security
+    create_backup=True,
+    backup_retention_days=7
+)
+print(f"Master key rotation completed: {rotation_id}")
+
+# Change master password
+rotation_id = custodian.change_master_password(
+    new_master_password="NewSecureMasterPassword456!@#",
+    new_iterations=1500000,  # Increase iterations for better security
+    create_backup=True,
+    backup_retention_days=7
+)
+print(f"Master password change completed: {rotation_id}")
+
+# Rotate all credential keys (keep same master password)
+rotation_id = custodian.rotate_all_credentials(
+    create_backup=True,
+    backup_retention_days=7,
+    batch_size=25
+)
+print(f"Bulk credential rotation completed: {rotation_id}")
+
+# View rotation history
+history = custodian.get_rotation_history(limit=10)
+for entry in history:
+    print(f"{entry.rotation_type} rotation: {entry.rotation_id}")
+    print(f"  Created: {entry.created_at}")
+    print(f"  Affected credentials: {len(entry.affected_credentials)}")
+
+# Rollback a rotation (use with caution!)
+# custodian.rollback_rotation(rotation_id="your-rotation-id")
+
+# Clean up expired backups
+cleaned_count = custodian.cleanup_expired_backups()
+print(f"Cleaned up {cleaned_count} expired backup(s)")
+```
+
+**Important Note**: When performing master key rotation with custom iterations, you must use the same iterations when creating a new KeyCustodian instance to access the rotated credentials. For example:
+
+```python
+# Rotate with custom iterations
+rotation_id = custodian.rotate_master_key(
+    new_master_password="new-password",
+    new_iterations=2000000
+)
+
+# Access with new password AND same iterations
+new_custodian = KeyCustodian("new-password", "/path/to/data", iterations=2000000)
+```
+
 ### Environment Variable Usage
 
 ```python
@@ -688,6 +1093,11 @@ python examples/env_master_password_usage.py
 
 # Run iterations example
 python examples/iterations_usage.py
+
+# Run key rotation example
+python examples/key_rotation_usage.py
+python examples/master_password_change_usage.py
+python examples/cli_key_rotation_demo.py
 ```
 
 ### Development Setup

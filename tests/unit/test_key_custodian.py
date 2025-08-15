@@ -279,7 +279,17 @@ class TestKeyCustodianUnit(unittest.TestCase):
                 fresh_temp_dir,
                 iterations=None
             )
-            self.assertIsNone(custodian._iterations)
+            # Test behavior: should be able to create and read credentials
+            key_id = custodian.create_credential(
+                name="Test Credential",
+                credentials={"username": "test", "password": "test123"}
+            )
+            self.assertIsNotNone(key_id)
+            
+            # Should be able to read the credential back
+            credential = custodian.read_credential(key_id)
+            self.assertEqual(credential["credentials"]["username"], "test")
+            self.assertEqual(credential["credentials"]["password"], "test123")
         finally:
             # Clean up the fresh temporary directory
             import shutil
