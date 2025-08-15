@@ -33,8 +33,8 @@ def main():
         print("EXAMPLE 1: Using default MASTER_PASSWORD environment variable")
         print("="*60)
         
-        # Encode a password to Base58
-        master_password = "MySuperSecureMasterPasswordWithComplexity123!@#"
+        # Encode a password to Base58 (length-only policy: at least 32 characters)
+        master_password = "MySuperSecureMasterPasswordAtLeast32Chars!!!!"
         encoded_password = encode_password_for_env(master_password)
         print(f"Original password: {master_password}")
         print(f"Base58 encoded: {encoded_password}")
@@ -78,8 +78,8 @@ def main():
         
         # Create a new temporary directory for the second example
         with tempfile.TemporaryDirectory() as temp_dir_2:
-            # Encode a different password
-            custom_password = "CustomEnvPasswordWithComplexity456!@#"
+            # Encode a different password (at least 32 characters)
+            custom_password = "CustomEnvPasswordAtLeast32Characters!!!!"
             custom_encoded = encode_password_for_env(custom_password)
             print(f"Custom password: {custom_password}")
             print(f"Custom Base58 encoded: {custom_encoded}")
@@ -149,7 +149,7 @@ def main():
         print("1. Set the environment variable in your shell or deployment:")
         print("   export MASTER_PASSWORD='your-base58-encoded-password'")
         print("2. Use the KeyCustodian in your code:")
-        print("   custodian = KeyCustodian.from_env_master_password('/path/to/data')")
+        print("   custodian = KeyCustodian.init_from_environment('MASTER_PASSWORD', '/path/to/data')")
         print("3. The password is automatically decoded and used for encryption")
         
         # Show how to encode a password for environment variable use
@@ -159,7 +159,7 @@ def main():
         print(f"print(f'export MASTER_PASSWORD=\"' + encoded + '\"')")
         
         # Demonstrate this
-        demo_password = "DemoPasswordForEnvWithComplexity123!@#"
+        demo_password = "DemoPasswordForEnvAtLeast32Characters!!!!"
         demo_encoded = encode_password_for_env(demo_password)
         print(f"\nDemo: password '{demo_password}' -> '{demo_encoded}'")
         print(f"Command: export MASTER_PASSWORD='{demo_encoded}'")

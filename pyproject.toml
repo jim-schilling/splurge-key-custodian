@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "splurge-key-custodian"
-version = "0.1.1"
+version = "0.1.2"
 description = "Splurge Key Custodian - File Based Implementation"
 readme = "README.md"
 license = "MIT"
@@ -24,6 +24,9 @@ requires-python = ">=3.10"
 dependencies = [
     "cryptography>=41.0.0",
 ]
+
+[project.scripts]
+skc = "splurge_key_custodian.cli:main"
 
 [project.optional-dependencies]
 dev = [

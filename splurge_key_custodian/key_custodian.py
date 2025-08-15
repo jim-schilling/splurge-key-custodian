@@ -3,15 +3,17 @@
 import json
 import logging
 import os
-import secrets
 import shutil
-import time
 import uuid
 from pathlib import Path
 from typing import Any, Optional
 
+# Configure logging
+logger = logging.getLogger(__name__)
+
 from splurge_key_custodian.base58 import Base58
 from splurge_key_custodian.crypto_utils import CryptoUtils
+from splurge_key_custodian.constants import Constants
 from splurge_key_custodian.exceptions import (
     EncryptionError,
     KeyNotFoundError,
@@ -30,41 +32,41 @@ from splurge_key_custodian.models import (
 class KeyCustodian:
     """File-based key custodian for secure credential management."""
 
-    _MAX_LOGIN_ATTEMPTS = 5  # Maximum failed login attempts
-    _LOCKOUT_DURATION = 300  # Lockout duration in seconds (5 minutes)
-    _FAILED_ATTEMPT_DELAY = 1  # Delay in seconds after failed attempt
-    _MIN_PASSWORD_LENGTH = 32  # Minimum password length
-    _MIN_ITERATIONS = 500000  # Minimum iterations for security
-    _REQUIRED_CHARACTER_CLASSES = {
-        'uppercase': 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
-        'lowercase': 'abcdefghijklmnopqrstuvwxyz',
-        'numeric': '0123456789',
-        'symbol': '!@#$%^&*()_+-=[]{}|;:,.<>?'
-    }
-
     @classmethod
     def _validate_master_password_complexity(cls, password: str) -> None:
         """Validate master password complexity requirements.
+
+        Enforces minimum length, maximum length, and character class requirements.
 
         Args:
             password: Master password to validate
 
         Raises:
-            ValidationError: If password does not meet complexity requirements
+            ValidationError: If password length requirement is not met
         """
-        if len(password) < cls._MIN_PASSWORD_LENGTH:
+        if len(password) < Constants.MIN_PASSWORD_LENGTH():
             raise ValidationError(
-                f"Master password must be at least {cls._MIN_PASSWORD_LENGTH} characters long"
+                f"Master password must be at least {Constants.MIN_PASSWORD_LENGTH()} characters long"
             )
-
-        missing_classes = []
-        for class_name, characters in cls._REQUIRED_CHARACTER_CLASSES.items():
-            if not any(char in characters for char in password):
-                missing_classes.append(class_name)
-
-        if missing_classes:
+        if len(password) > Constants.MAX_PASSWORD_LENGTH():
             raise ValidationError(
-                f"Master password must contain at least one character from each of the following classes: {', '.join(missing_classes)}"
+                f"Master password must be less than {Constants.MAX_PASSWORD_LENGTH()} characters long"
+            )
+        if not any(c in CryptoUtils.B58_ALPHA_UPPER() for c in password):
+            raise ValidationError(
+                "Master password must contain at least one uppercase letter"
+            )
+        if not any(c in CryptoUtils.B58_ALPHA_LOWER() for c in password):
+            raise ValidationError(
+                "Master password must contain at least one lowercase letter"
+            )
+        if not any(c in CryptoUtils.B58_DIGIT() for c in password):
+            raise ValidationError(
+                "Master password must contain at least one numeric character"
+            )
+        if not any(c in CryptoUtils.ALLOWABLE_SPECIAL() for c in password):
+            raise ValidationError(
+                "Master password must contain at least one special character"
             )
 
     @classmethod
@@ -80,7 +82,7 @@ class KeyCustodian:
         Args:
             env_variable: Environment variable name containing Base58-encoded master password
             data_dir: Directory to store key files
-            iterations: Number of iterations for key derivation (default: 1,000,000, minimum: 500,000)
+            iterations: Number of iterations for key derivation (default: 1,000,000, minimum: 100,000)
 
         Returns:
             KeyCustodian instance
@@ -139,7 +141,7 @@ class KeyCustodian:
             master_password: Master password for encryption/decryption. Must be at least 32 characters
                            and contain uppercase, lowercase, numeric, and symbol characters.
             data_dir: Directory to store key files
-            iterations: Number of iterations for key derivation (default: 1,000,000, minimum: 500,000)
+            iterations: Number of iterations for key derivation (default: 1,000,000, minimum: 100,000)
 
         Raises:
             ValidationError: If data_dir or master_password is empty, if master_password
@@ -174,8 +176,8 @@ class KeyCustodian:
         self._validate_master_password_complexity(master_password)
 
         # Validate iterations parameter
-        if iterations is not None and iterations < self._MIN_ITERATIONS:
-            raise ValidationError(f"Iterations must be at least {self._MIN_ITERATIONS:,}")
+        if iterations is not None and iterations < Constants.MIN_ITERATIONS():
+            raise ValidationError(f"Iterations must be at least {Constants.MIN_ITERATIONS():,}")
 
         self._master_password = master_password
         self._data_dir = data_dir
@@ -183,11 +185,7 @@ class KeyCustodian:
         self._file_manager = FileManager(data_dir)
         self._credentials_index: Optional[CredentialsIndex] = None
         self._current_master_key: Optional[MasterKey] = None
-        
-        # Rate limiting tracking
-        self._failed_attempts = 0
-        self._last_failed_attempt = 0.0
-        self._lockout_until = 0.0
+        # Internal-only state; no caches or rate limiting retained
 
         # Initialize or load master key
         self._initialize_master_key()
@@ -237,9 +235,6 @@ class KeyCustodian:
                 master_key_data = master_keys_data["master_keys"][0]
                 master_key = MasterKey.from_dict(master_key_data)
                 
-                # Check rate limiting before attempting authentication
-                self._check_rate_limit()
-                
                 # Validate the password by attempting to decrypt the placeholder credential
                 try:
                     # Derive the master key from the password
@@ -257,17 +252,26 @@ class KeyCustodian:
                     )
                     
                     # Verify the decrypted data is what we expect (single zero byte)
-                    if decrypted_placeholder != b"\x00":
-                        self._record_failed_attempt()
+                    if not CryptoUtils.constant_time_compare(decrypted_placeholder, b"\x00"):
+                        # Clean up sensitive data before raising exception
+                        CryptoUtils.secure_zero(bytearray(derived_master_key))
+                        CryptoUtils.secure_zero(bytearray(decrypted_placeholder))
                         raise MasterKeyError("Invalid master key data")
                     
                     # If decryption succeeds and data is correct, the password is correct
                     self._current_master_key = master_key
-                    self._reset_failed_attempts()
+                    # Successful validation
+                    # Clean up sensitive data
+                    CryptoUtils.secure_zero(bytearray(derived_master_key))
+                    CryptoUtils.secure_zero(bytearray(decrypted_placeholder))
                     
                 except Exception as e:
                     # If decryption fails, the password is wrong
-                    self._record_failed_attempt()
+                    logger.warning("Failed authentication attempt", extra={
+                        "event": "auth_failed",
+                        "reason": "invalid_password",
+                        "attempts": 1
+                    })
                     raise MasterKeyError(f"Invalid master password: {e}") from e
             else:
                 # Create new master key
@@ -956,38 +960,20 @@ class KeyCustodian:
             return 0
         return len(self._credentials_index.credentials)
 
-    def _check_rate_limit(self) -> None:
-        """Check rate limiting and enforce delays/lockouts.
-        
-        Raises:
-            MasterKeyError: If rate limit exceeded
-        """
-        current_time = time.time()
-        
-        # Check if currently locked out
-        if current_time < self._lockout_until:
-            remaining = int(self._lockout_until - current_time)
-            raise MasterKeyError(f"Account locked out. Try again in {remaining} seconds")
-        
-        # Reset failed attempts if lockout period has passed
-        if current_time - self._last_failed_attempt > self._LOCKOUT_DURATION:
-            self._failed_attempts = 0
-    
-    def _record_failed_attempt(self) -> None:
-        """Record a failed authentication attempt."""
-        current_time = time.time()
-        self._failed_attempts += 1
-        self._last_failed_attempt = current_time
-        
-        # Enforce delay after failed attempt
-        time.sleep(self._FAILED_ATTEMPT_DELAY)
-        
-        # Check if lockout should be triggered
-        if self._failed_attempts >= self._MAX_LOGIN_ATTEMPTS:
-            self._lockout_until = current_time + self._LOCKOUT_DURATION
-            raise MasterKeyError(f"Too many failed attempts. Account locked for {self._LOCKOUT_DURATION} seconds")
-    
-    def _reset_failed_attempts(self) -> None:
-        """Reset failed attempts counter on successful authentication."""
-        self._failed_attempts = 0
-        self._lockout_until = 0.0
+    # No rate limiting support
+
+    def __enter__(self) -> "KeyCustodian":
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Context manager exit with cleanup."""
+        self.cleanup()
+
+    def cleanup(self) -> None:
+        """Clean up sensitive data from memory."""
+        # Clear sensitive data
+        if hasattr(self, '_master_password'):
+            CryptoUtils.secure_zero_string(self._master_password)
+            self._master_password = None
+        # No caches or rate limiting state to clear

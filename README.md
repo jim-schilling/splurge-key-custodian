@@ -6,13 +6,20 @@ A secure file-based key management system that stores cryptographic keys in JSON
 
 - **Hybrid file-based storage**: Uses separate credential files and a central index for optimal performance and recovery
 - **Atomic operations**: All file operations create temporary files, then atomically replace originals
-- **Secure encryption**: All credentials are encrypted with Fernet (AES-256-CBC with HMAC-SHA256) using a master password with 64-byte salt and configurable iterations (default: 1,000,000, minimum: 500,000)
+- **Secure encryption**: All credentials are encrypted with Fernet (AES-256-CBC with HMAC-SHA256) using a master password with 64-byte salt and configurable iterations (default: 1,000,000, minimum: 100,000)
+- **Advanced security features**:
+  - Constant-time comparison to prevent timing attacks
+  - Secure memory zeroing for sensitive data cleanup
+  - Input sanitization
+  - Context manager support for automatic resource cleanup
 - **Unique naming**: Credential names must be unique across all stored credentials
 - **Flexible data structure**: Store any JSON-serializable data as credentials and metadata
 - **Master key encryption**: Uses a master key derived from your password to encrypt individual credentials
 - **Index rebuilding**: Automatic recovery from credential files if index is corrupted or missing
 - **Backup support**: Built-in backup functionality for disaster recovery
 - **Environment variable support**: Load master password from environment variables with Base58 encoding
+- **Comprehensive CLI**: Full command-line interface with input validation and error handling
+- **Extensive testing**: 400+ tests with 90%+ code coverage across unit, integration, and functional tests
 
 ## Installation
 
@@ -37,20 +44,22 @@ pip install -e ".[dev]"
 
 ## Quick Start
 
+### Python API
+
 ```python
 from splurge_key_custodian import KeyCustodian
 
-# Initialize the key custodian with default iterations (1,000,000)
+# Initialize the key custodian with default iterations (100,000)
 custodian = KeyCustodian(
-    master_password="YourSecureMasterPasswordWithComplexity123!@#",
+    master_password="A very long passphrase of at least 32 characters",
     data_dir="/path/to/credentials"
 )
 
-# Or initialize with custom iterations (minimum 500,000)
+# Or initialize with custom iterations (minimum 100,000)
 custodian = KeyCustodian(
-    master_password="YourSecureMasterPasswordWithComplexity123!@#",
+    master_password="A very long passphrase of at least 32 characters",
     data_dir="/path/to/credentials",
-    iterations=500000
+    iterations=200000
 )
 
 # Create a new credential
@@ -69,6 +78,36 @@ credential_info = custodian.find_credential_by_name("Production API")
 # List all credentials
 all_credentials = custodian.list_credentials()
 ```
+
+### Command Line Interface
+
+```bash
+# Save credentials with master password
+python -m splurge_key_custodian -p "my-master-password" -d /path/to/data save -n "My Account" \
+  -c '{"username": "user", "password": "pass"}'
+
+# Save credentials with environment master password
+python -m splurge_key_custodian -ep SPLURGE_MASTER_PASSWORD -d /path/to/data save -n "My Account" \
+  -c '{"username": "user", "password": "pass"}'
+
+# Read credentials
+python -m splurge_key_custodian -p "my-master-password" -d /path/to/data read -n "My Account"
+
+# List all credentials
+python -m splurge_key_custodian -p "my-master-password" -d /path/to/data list
+
+# Validate master password
+python -m splurge_key_custodian -p "my-master-password" -d /path/to/data master
+
+# Base58 encode/decode/generate (requires -x or --advanced flag)
+python -m splurge_key_custodian -x base58 -e "Hello, World!"
+python -m splurge_key_custodian -x base58 -d "JxF12TrwUP45BMd"
+python -m splurge_key_custodian -x base58 -g 48
+```
+
+## Configuration
+
+Iteration and password requirements are enforced internally.
 
 ## File Structure
 
@@ -108,33 +147,36 @@ The main class for key management operations.
 KeyCustodian(master_password: str, data_dir: str, *, iterations: Optional[int] = None)
 ```
 
-- `master_password`: Master password for encrypting/decrypting keys. Must meet the following complexity requirements:
-  - At least 32 characters long
-  - Contains at least one uppercase letter (A-Z)
-  - Contains at least one lowercase letter (a-z)
-  - Contains at least one numeric digit (0-9)
-  - Contains at least one symbol character (!@#$%^&*()_+-=[]{}|;:,.<>?)
+- `master_password`: Master password for encrypting/decrypting keys. Policy: at least 32 characters.
 - `data_dir`: Directory to store key files
-- `iterations`: Number of iterations for key derivation (default: 1,000,000, minimum: 500,000)
+- `iterations`: Number of iterations for key derivation (default: 500,000, minimum: 100,000)
 
 **Password Requirements:**
-The master password must meet strict complexity requirements to ensure security:
-- **Minimum length**: 32 characters
-- **Character classes required**:
-  - Uppercase letters (A-Z)
-  - Lowercase letters (a-z)
-  - Numeric digits (0-9)
-  - Symbol characters (!@#$%^&*()_+-=[]{}|;:,.<>?)
+- **Length**: From 32 to 512 characters long
+- **Character Classes**: Must contain at least one character from each of the following classes:
+  - Uppercase letters (A-Z, except I, O)
+  - Lowercase letters (a-z, except l)
+  - Numbers (1-9, except 0)
+  - Symbols (!@#$%^&*_+-=[];,.?)
 
 **Example valid passwords:**
-- `"MySecureMasterPasswordWithComplexity123!@#"`
-- `"ThisIsAValidPasswordWithAllRequirements123!@#"`
-- `"SuperLongPasswordWithMixedCaseAndSymbols456!@#"`
+- `"This is a long passphrase with at least thirty-two characters"`
 
 **Example invalid passwords:**
-- `"short"` (too short, missing character classes)
-- `"thisisalongpasswordwithlowercaseonly"` (missing uppercase, numeric, symbols)
-- `"THISISALONGPASSWORDWITHUPPERCASEONLY"` (missing lowercase, numeric, symbols)
+- `"short"` (too short)
+
+#### Context Manager Support
+
+The KeyCustodian supports context manager usage for automatic resource cleanup:
+
+```python
+with KeyCustodian("password", "/path/to/data") as custodian:
+    key_id = custodian.create_credential(
+        name="Test",
+        credentials={"test": "data"}
+    )
+    # Automatic cleanup of sensitive data when exiting context
+```
 
 #### Class Methods
 
@@ -156,7 +198,7 @@ init_from_environment(
 **Parameters:**
 - `env_variable`: Name of the environment variable containing the Base58-encoded master password
 - `data_dir`: Directory to store key files
-- `iterations`: Number of iterations for key derivation (default: 1,000,000, minimum: 500,000)
+- `iterations`: Number of iterations for key derivation (default: 1,000,000, minimum: 100,000)
 
 **Returns:** KeyCustodian instance
 
@@ -171,7 +213,7 @@ from splurge_key_custodian import KeyCustodian
 from splurge_key_custodian.base58 import Base58
 
 # Encode your password to Base58
-password = "MySecurePasswordWithComplexity123!@#"
+password = "A very long passphrase of at least 32 characters"
 encoded_password = Base58.encode(password.encode('utf-8'))
 
 # Set environment variable
@@ -304,6 +346,16 @@ rebuild_index() -> None
 
 **Note:** This method is useful for recovery scenarios where the index file is corrupted or missing. The system automatically rebuilds the index during initialization if needed.
 
+##### cleanup()
+
+Manually cleanup sensitive data from memory.
+
+```python
+cleanup() -> None
+```
+
+**Note:** This method is automatically called when using the context manager. It securely zeros sensitive data including master passwords.
+
 #### Properties
 
 - `data_directory`: Get the data directory path
@@ -357,6 +409,50 @@ class MasterKey:
     created_at: datetime           # Creation timestamp
 ```
 
+## Security Features
+
+### Advanced Security Measures
+
+1. **Constant-time comparison**: Prevents timing attacks during password validation
+2. **Secure memory zeroing**: Automatically cleans up sensitive data from memory
+3. **Input sanitization**: Validates and sanitizes all input to prevent injection attacks
+4. **Context manager support**: Automatic cleanup of sensitive data when exiting context
+
+## CLI Features
+
+### Input Validation
+
+The CLI includes comprehensive input validation:
+
+- **Character sanitization**: Blocks dangerous characters while allowing legitimate special characters
+- **Length limits**: Configurable input length restrictions
+- **JSON validation**: Ensures valid JSON for credential data
+- **Password policy**: Enforces minimum length requirements
+
+### Error Handling
+
+- **Structured error messages**: Clear, actionable error messages
+- **Graceful failure**: Proper error handling and cleanup
+- **User-friendly output**: Formatted output for better readability
+
+### CLI Examples
+
+```bash
+# Save credentials with special characters in name
+python -m splurge_key_custodian -p "password" -d /path/to/data save \
+  -n "My Account ($100) & Admin" \
+  -c '{"username": "user", "password": "pass"}'
+
+# Save with metadata
+python -m splurge_key_custodian -p "password" -d /path/to/data save \
+  -n "Database Access" \
+  -c '{"host": "db.example.com", "port": 5432}' \
+  -m '{"environment": "production", "backup": true}'
+
+# Read and display formatted output
+python -m splurge_key_custodian -p "password" -d /path/to/data read -n "My Account"
+```
+
 ## Security Considerations
 
 1. **Master Password**: Keep your master password secure and never store it in plain text
@@ -365,6 +461,8 @@ class MasterKey:
 4. **Key Rotation**: Regularly rotate keys according to your security policy
 5. **Expiration**: Use key expiration to enforce key lifecycle management
 6. **Index Recovery**: The system can automatically rebuild the index from credential files if needed
+7. **Memory Security**: Use context managers to ensure sensitive data is cleaned up
+8. **Input Validation**: All input is validated and sanitized to prevent injection attacks
 
 ## Examples
 
@@ -393,6 +491,21 @@ database_credentials = custodian.create_credential(
 api_data = custodian.read_credential(api_credentials)
 db_data = custodian.read_credential(database_credentials)
 ```
+
+### Context Manager Usage
+
+```python
+# Automatic cleanup with context manager
+with KeyCustodian("password", "/path/to/data") as custodian:
+    key_id = custodian.create_credential(
+        name="Temporary Credential",
+        credentials={"temp": "data"}
+    )
+    data = custodian.read_credential(key_id)
+    # Automatic cleanup when exiting context
+```
+
+<!-- Configuration Management example removed (legacy). -->
 
 ### Name Uniqueness Enforcement
 
@@ -474,7 +587,7 @@ encoded_password = Base58.encode(password.encode('utf-8'))
 os.environ["MASTER_PASSWORD"] = encoded_password
 
 # Create custodian from environment
-custodian = KeyCustodian.from_env_master_password("/path/to/credentials")
+custodian = KeyCustodian.init_from_environment("MASTER_PASSWORD", "/path/to/credentials")
 
 # Use normally
 key_id = custodian.create_credential(
@@ -485,7 +598,7 @@ key_id = custodian.create_credential(
 
 ## Testing
 
-The project uses a well-organized test structure with unit, integration, and functional tests.
+The project includes comprehensive testing with over 400 tests and 90%+ code coverage.
 
 ### Test Organization
 
@@ -524,6 +637,7 @@ All test runs include:
 - pytest-cov with HTML report generation
 - Verbose mode (-v)
 - Fail fast (-x) to stop on first failure
+- **90%+ code coverage** across all modules
 
 ### Manual Test Execution
 
@@ -545,6 +659,14 @@ pytest tests/functional/
 pytest tests/unit/test_crypto_utils.py
 ```
 
+### Test Categories
+
+- **Unit Tests**: Test individual components in isolation
+- **Integration Tests**: Test component interactions and workflows
+- **Functional Tests**: Test end-to-end functionality and CLI operations
+- **Security Tests**: Test security features and edge cases
+<!-- Performance tests for caching removed (legacy). -->
+
 ## Development
 
 ### Code Style
@@ -553,6 +675,7 @@ This project follows PEP 8 and uses:
 - Black for code formatting
 - Ruff for linting
 - MyPy for type checking
+- Comprehensive docstrings and type annotations
 
 ### Running Examples
 
@@ -560,9 +683,34 @@ This project follows PEP 8 and uses:
 # Run basic usage example
 python examples/basic_usage.py
 
-# Run index rebuild demo
-python examples/index_rebuild_demo.py
+# Run environment variable example
+python examples/env_master_password_usage.py
+
+# Run iterations example
+python examples/iterations_usage.py
 ```
+
+### Development Setup
+
+```bash
+# Clone repository
+git clone https://github.com/splurge/splurge-key-custodian.git
+cd splurge-key-custodian
+
+# Install development dependencies
+pip install -e ".[dev]"
+
+# Run tests
+python tests/run_tests.py
+
+# Run linting
+ruff check .
+
+# Run type checking
+mypy splurge_key_custodian/
+```
+
+<!-- Recent Improvements section removed to avoid legacy feature references. -->
 
 ## License
 

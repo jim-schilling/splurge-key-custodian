@@ -13,14 +13,14 @@ def main():
     with tempfile.TemporaryDirectory() as temp_dir:
         print(f"Using temporary directory: {temp_dir}")
         
-        # Initialize the hybrid key custodian
-        master_password = "MySecureMasterPasswordWithComplexity123!@#"
+        # Initialize the hybrid key custodian (password must be at least 32 characters)
+        master_password = "MySecureMasterPasswordThatIsAtLeast32CharsLong!!!!"
         custodian = KeyCustodian(
             master_password,
             temp_dir
         )
         
-        print(f"Initialized KeyCustodian")
+        print("Initialized KeyCustodian")
         print(f"Data directory: {custodian.data_directory}")
         print(f"Master key ID: {custodian.master_key_id}")
         print(f"Credential count: {custodian.credential_count}")

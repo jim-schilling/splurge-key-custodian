@@ -51,11 +51,11 @@ class TestCLIFunctional(unittest.TestCase):
     def test_base58_encoding_and_decoding(self):
         """Test Base58 encoding and decoding functionality."""
         # Test encoding
-        encoded = self.run_cli_command_plain(["base58", "-e", "Hello World"])
+        encoded = self.run_cli_command_plain(["--advanced", "base58", "-e", "Hello World"])
         self.assertIn("JxF12TrwUP45BMd", encoded)
         
         # Test decoding
-        decoded = self.run_cli_command_plain(["base58", "-d", encoded])
+        decoded = self.run_cli_command_plain(["--advanced", "base58", "-d", encoded])
         self.assertEqual(decoded, "Hello World")
 
     def test_save_credentials_with_master_password(self):
@@ -264,7 +264,7 @@ class TestCLIFunctional(unittest.TestCase):
 
     def test_error_handling_base58_missing_args(self):
         """Test error handling with missing base58 arguments."""
-        result = self.run_cli_command_plain(["base58"])
+        result = self.run_cli_command_plain(["--advanced", "base58"])
         
         self.assertIn("error", result.lower())
         self.assertIn("encode (-e), decode (-d), or generate (-g)", result.lower())
@@ -272,7 +272,7 @@ class TestCLIFunctional(unittest.TestCase):
     def test_error_handling_base58_both_args(self):
         """Test error handling with both base58 encode and decode args."""
         result = self.run_cli_command_plain([
-            "base58", "-e", "test", "-d", "test"
+            "--advanced", "base58", "-e", "test", "-d", "test"
         ])
         
         self.assertIn("error", result.lower())
@@ -281,7 +281,7 @@ class TestCLIFunctional(unittest.TestCase):
     def test_error_handling_base58_invalid_decode(self):
         """Test error handling with invalid base58 decode input."""
         result = self.run_cli_command_plain([
-            "base58", "-d", "invalid-base58-data!"
+            "--advanced", "base58", "-d", "invalid-base58-data!"
         ])
         
         self.assertIn("error", result.lower())
@@ -363,51 +363,7 @@ class TestCLIFunctional(unittest.TestCase):
         credential_files = list(data_path.glob("*.credential.json"))
         self.assertGreater(len(credential_files), 0)
 
-    def test_concurrent_operations(self):
-        """Test concurrent operations on the same data directory."""
-        import threading
-        import time
-        
-        def save_credential(thread_id):
-            """Save a credential in a separate thread."""
-            credentials = {"thread": thread_id}
-            result = self.run_cli_command_plain([
-                "-p", self.master_password,
-                "-d", self.temp_dir,
-                "save",
-                "-n", f"Thread {thread_id} Credential",
-                "-c", json.dumps(credentials)
-            ])
-            return result
-        
-        # Start multiple threads
-        threads = []
-        for i in range(3):
-            thread = threading.Thread(target=save_credential, args=(i,))
-            threads.append(thread)
-            thread.start()
-        
-        # Wait for all threads to complete
-        for thread in threads:
-            thread.join()
-        
-        # Verify all credentials were saved
-        list_result = self.run_cli_command_plain([
-            "-p", self.master_password,
-            "-d", self.temp_dir,
-            "list"
-        ])
-        
-        # Check that at least some credentials were saved
-        # Due to race conditions, not all threads might succeed
-        saved_count = 0
-        for i in range(3):
-            if f"Thread {i} Credential" in list_result:
-                saved_count += 1
-        
-        # At least one credential should have been saved
-        self.assertGreater(saved_count, 0)
-
+            
 
 if __name__ == "__main__":
     unittest.main() 

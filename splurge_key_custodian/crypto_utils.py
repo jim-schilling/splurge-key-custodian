@@ -1,6 +1,7 @@
 """Cryptographic utilities for the Splurge Key Custodian File system."""
 
 import base64
+import hmac
 import secrets
 
 from typing import Optional
@@ -10,33 +11,77 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 from splurge_key_custodian.base58 import Base58
+from splurge_key_custodian.constants import Constants
 from splurge_key_custodian.exceptions import EncryptionError
 from splurge_key_custodian.exceptions import ValidationError
 
 
 class CryptoUtils:
     """Cryptographic utilities for key operations."""
+    
+    _B58_ALPHA_UPPER = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+    _B58_ALPHA_LOWER = 'abcdefghijkmnopqrstuvwxyz'    
+    _B58_DIGIT = '123456789'    
+    _ALLOWABLE_SPECIAL = '!@#$%^&*_+-=[],.?;'
+    _CHAR_CLASS_MIN_LENGTH = 2
+    _RND_ALPHA_CHAR_MIN_LENGTH =  7
 
-    _KEY_SIZE = 256  # Fixed 256-bit key size
-    _KEY_SIZE_BYTES = 32  # 256 bits = 32 bytes
-    _DEFAULT_ITERATIONS = 1000000  # 1,000,000 iterations
-    _MIN_ITERATIONS = 500000  # Minimum iterations for security
-    _SALT_SIZE = 64  # 64-byte salt
-    _MIN_SALT_SIZE = 32  # Minimum salt size for security
-    _B58_ALPHANUMERIC = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
-    _SPECIAL = '!@#$%^&*()_+?'
-    _B58_NUMERIC = '123456789'    
 
     @classmethod
-    def generate_base58_like_random_string(cls) -> str:
+    def B58_ALPHA_UPPER(cls) -> str:
+        return cls._B58_ALPHA_UPPER
+    
+    @classmethod
+    def B58_ALPHA_LOWER(cls) -> str:
+        return cls._B58_ALPHA_LOWER
+    
+    @classmethod
+    def B58_DIGIT(cls) -> str:
+        return cls._B58_DIGIT
+    
+    @classmethod
+    def ALLOWABLE_SPECIAL(cls) -> str:
+        return cls._ALLOWABLE_SPECIAL
+    
+    @classmethod
+    def B58_LIKE_CHAR_CLASS(cls) -> str:
+        return cls._B58_ALPHA_UPPER + cls._B58_ALPHA_LOWER + cls._B58_DIGIT + cls._ALLOWABLE_SPECIAL
+
+    @staticmethod
+    def constant_time_compare(a: bytes, b: bytes) -> bool:
+        """Perform constant-time comparison of two byte strings.
+        
+        Args:
+            a: First byte string
+            b: Second byte string
+            
+        Returns:
+            True if strings are equal, False otherwise
+        """
+        return hmac.compare_digest(a, b)
+
+    @classmethod
+    def generate_base58_like_random_string(cls, length: int | None = None) -> str:
         """Generate a random Base58-like string.
+
+        Args:
+            length: Length of the string (default: None, which means the minimum length)
 
         Returns:
             Random Base58-like string
-        """
-        result = ''.join(secrets.choice(cls._B58_ALPHANUMERIC) for _ in range(54))
-        result += ''.join(secrets.choice(cls._SPECIAL) for _ in range(4))
-        result += ''.join(secrets.choice(cls._B58_NUMERIC) for _ in range(6))
+        """        
+        if length is None or length < Constants.MIN_PASSWORD_LENGTH():
+            length = Constants.MIN_PASSWORD_LENGTH()
+        elif length > Constants.MAX_PASSWORD_LENGTH():
+            length = Constants.MAX_PASSWORD_LENGTH()
+
+        result = ''.join(secrets.choice(cls.B58_ALPHA_UPPER()) for _ in range(cls._CHAR_CLASS_MIN_LENGTH))
+        result += ''.join(secrets.choice(cls.B58_ALPHA_LOWER()) for _ in range(cls._CHAR_CLASS_MIN_LENGTH))
+        result += ''.join(secrets.choice(cls.ALLOWABLE_SPECIAL()) for _ in range(cls._CHAR_CLASS_MIN_LENGTH))
+        result += ''.join(secrets.choice(cls.B58_DIGIT()) for _ in range(cls._CHAR_CLASS_MIN_LENGTH))
+
+        # Add more characters to the result to increase the length
+        result += ''.join(secrets.choice(cls.B58_LIKE_CHAR_CLASS()) for _ in range(length - len(result)))
         
         # Use cryptographically secure Fisher-Yates shuffle
         result_list = list(result)
@@ -53,7 +98,7 @@ class CryptoUtils:
         Returns:
             Random 256-bit key as bytes
         """
-        return secrets.token_bytes(cls._KEY_SIZE_BYTES)
+        return secrets.token_bytes(Constants.KEY_SIZE_BYTES())
 
     @classmethod
     def generate_salt(cls) -> bytes:
@@ -62,7 +107,7 @@ class CryptoUtils:
         Returns:
             Random salt as bytes
         """
-        return secrets.token_bytes(cls._SALT_SIZE)
+        return secrets.token_bytes(Constants.DEFAULT_SALT_SIZE())
 
     @classmethod
     def derive_key_from_password(
@@ -91,19 +136,19 @@ class CryptoUtils:
             raise ValidationError("Password must be a non-empty string")
         
         # Validate salt
-        if not salt or len(salt) < cls._MIN_SALT_SIZE:
-            raise ValidationError(f"Salt must be at least {cls._MIN_SALT_SIZE} bytes")
+        if not salt or len(salt) < Constants.MIN_SALT_SIZE():
+            raise ValidationError(f"Salt must be at least {Constants.MIN_SALT_SIZE()} bytes")
         
         # Validate iterations
         if iterations is None:
-            iterations = cls._DEFAULT_ITERATIONS
-        elif iterations < cls._MIN_ITERATIONS:
-            raise ValidationError(f"Iterations must be at least {cls._MIN_ITERATIONS}")
+            iterations = Constants.DEFAULT_ITERATIONS()
+        elif iterations < Constants.MIN_ITERATIONS():
+            raise ValidationError(f"Iterations must be at least {Constants.MIN_ITERATIONS()}")
 
         try:
             kdf = PBKDF2HMAC(
                 algorithm=hashes.SHA256(),
-                length=cls._KEY_SIZE_BYTES,
+                length=Constants.KEY_SIZE_BYTES(),
                 salt=salt,
                 iterations=iterations,
             )
@@ -133,12 +178,12 @@ class CryptoUtils:
             EncryptionError: If key derivation fails
         """
         if iterations is None:
-            iterations = cls._DEFAULT_ITERATIONS
+            iterations = Constants.DEFAULT_ITERATIONS()
 
         try:
             kdf = PBKDF2HMAC(
                 algorithm=hashes.SHA256(),
-                length=cls._KEY_SIZE_BYTES,
+                length=Constants.KEY_SIZE_BYTES(),
                 salt=salt,
                 iterations=iterations,
             )
@@ -162,8 +207,8 @@ class CryptoUtils:
             ValidationError: If key size is invalid
         """
         # Validate key size
-        if len(key) != CryptoUtils._KEY_SIZE_BYTES:
-            raise ValidationError(f"Key must be exactly {CryptoUtils._KEY_SIZE_BYTES} bytes")
+        if len(key) != Constants.KEY_SIZE_BYTES():
+            raise ValidationError(f"Key must be exactly {Constants.KEY_SIZE_BYTES()} bytes")
         
         # Validate data
         if not data:
@@ -180,7 +225,7 @@ class CryptoUtils:
         key: bytes, 
         encrypted_data: bytes
     ) -> bytes:
-        """Decrypt data using Fernet (AES-128-CBC with HMAC-SHA256).
+        """Decrypt data using Fernet (AES-256-CBC with HMAC-SHA256).
 
         Args:
             key: Decryption key (32 bytes)
@@ -194,8 +239,8 @@ class CryptoUtils:
             ValidationError: If key size is invalid
         """
         # Validate key size
-        if len(key) != CryptoUtils._KEY_SIZE_BYTES:
-            raise ValidationError(f"Key must be exactly {CryptoUtils._KEY_SIZE_BYTES} bytes")
+        if len(key) != Constants.KEY_SIZE_BYTES():
+            raise ValidationError(f"Key must be exactly {Constants.KEY_SIZE_BYTES()} bytes")
         
         # Validate encrypted data
         if not encrypted_data:
@@ -269,16 +314,16 @@ class CryptoUtils:
             raise EncryptionError(f"Key decryption failed: {e}") from e
 
     @staticmethod
-    def secure_zero(data: bytes) -> None:
+    def secure_zero(data: bytearray) -> None:
         """Securely zero sensitive data from memory.
         
         Args:
-            data: Data to zero
+            data: Data to zero (must be bytearray for in-place modification)
         """
         if data:
-            # Use a secure method to zero the data
+            # Zero the data in place
             for i in range(len(data)):
-                data = data[:i] + b'\x00' + data[i+1:]
+                data[i] = 0
     
     @staticmethod
     def secure_zero_string(data: str) -> None:
@@ -288,6 +333,6 @@ class CryptoUtils:
             data: String data to zero
         """
         if data:
-            # Convert to bytes and zero
-            data_bytes = data.encode('utf-8')
+            # Convert to bytearray and zero
+            data_bytes = bytearray(data.encode('utf-8'))
             CryptoUtils.secure_zero(data_bytes)

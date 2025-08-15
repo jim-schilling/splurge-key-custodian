@@ -4,7 +4,7 @@
 import tempfile
 import shutil
 from splurge_key_custodian.key_custodian import KeyCustodian
-
+from splurge_key_custodian.constants import Constants
 
 def main():
     """Demonstrate iterations parameter usage."""
@@ -15,10 +15,10 @@ def main():
     temp_dir = tempfile.mkdtemp()
     
     try:
-        # Master password that meets complexity requirements
-        master_password = "ThisIsAValidTestPasswordWithAllRequirements123!@#"
+        # Master password (length-only policy: at least 32 characters)
+        master_password = "ThisIsAValidTestPasswordAtLeast32Chars!!!!"
         
-        print(f"1. Creating KeyCustodian with default iterations (1,000,000)...")
+        print("1. Creating KeyCustodian with default iterations (1,000,000)...")
         custodian_default = KeyCustodian(
             master_password=master_password,
             data_dir=temp_dir
@@ -32,14 +32,14 @@ def main():
         )
         print(f"   - Created credential with key ID: {key_id}")
         
-        print(f"\n2. Creating KeyCustodian with custom iterations (500,000)...")
+        print("\n2. Creating KeyCustodian with custom iterations (100,000)...")
         # Use a different directory to avoid conflicts
         temp_dir2 = tempfile.mkdtemp()
         try:
             custodian_custom = KeyCustodian(
                 master_password=master_password,
                 data_dir=temp_dir2,
-                iterations=500000
+                iterations=Constants.MIN_ITERATIONS()
             )
             print(f"   - Iterations: {custodian_custom._iterations}")
             
@@ -53,23 +53,23 @@ def main():
         finally:
             shutil.rmtree(temp_dir2, ignore_errors=True)
         
-        print(f"\n3. Testing iterations validation...")
+        print("\n3. Testing iterations validation...")
         try:
             # This should fail - iterations too low
             KeyCustodian(
                 master_password=master_password,
                 data_dir=temp_dir,
-                iterations=100000  # Below minimum of 500,000
+                iterations=Constants.MIN_ITERATIONS() - 1
             )
             print("   - ERROR: Should have failed!")
         except Exception as e:
             print(f"   - Correctly rejected low iterations: {e}")
         
-        print(f"\n4. Reading credential with default iterations...")
+        print("\n4. Reading credential with default iterations...")
         credential = custodian_default.read_credential(key_id)
         print(f"   - Retrieved credential: {credential}")
         
-        print(f"\n5. Testing init_from_environment with iterations...")
+        print("\n5. Testing init_from_environment with iterations...")
         import os
         from splurge_key_custodian.base58 import Base58
         
@@ -84,7 +84,7 @@ def main():
             custodian_env = KeyCustodian.init_from_environment(
                 env_variable=env_var,
                 data_dir=temp_dir3,
-                iterations=600000
+                iterations=Constants.MIN_ITERATIONS()
             )
             print(f"   - Created from environment with iterations: {custodian_env._iterations}")
         finally:

@@ -39,7 +39,7 @@ All commands (except `base58`) require authentication and a data directory:
 - `-p, --password`: Master password for encryption/decryption
 - `-ep, --env-password`: Use master password from `MASTER_PASSWORD` environment variable (Base58 encoded)
 - `-d, --data-dir`: Data directory for storing key files
-- `-i, --iterations`: Number of iterations for key derivation (minimum: 500,000, default: 1,000,000)
+- `-i, --iterations`: Number of iterations for key derivation (minimum: 100,000, default: 1,000,000)
 
 **Note**: You must specify either `-p` or `-ep`, but not both.
 
@@ -71,7 +71,7 @@ python cli.py -ep -d /path/to/data save \
   -c '{"username": "user", "password": "pass"}'
 
 # Save with custom iterations
-python cli.py -p "MySecureMasterPasswordWithComplexity123!@#" -d /path/to/data -i 500000 save \
+python cli.py -p "MySecureMasterPasswordWithComplexity123!@#" -d /path/to/data -i 100000 save \
   -n "My Account" \
   -c '{"username": "user", "password": "pass"}'
 ```
@@ -157,19 +157,23 @@ python cli.py -p "MySecureMasterPasswordWithComplexity123!@#" -d /path/to/data m
 
 #### 5. Base58 Encode/Decode (`base58`)
 
-Encode plaintext to Base58 format or decode Base58 to plaintext.
+Encode plaintext to Base58 format, decode Base58 to plaintext, or generate cryptographically secure random strings.
 
 **Required Arguments:**
-- `-encode`: Plaintext string to encode to Base58, OR
-- `-decode`: Base58 string to decode to plaintext
+- `--encode`: Plaintext string to encode to Base58, OR
+- `--decode`: Base58 string to decode to plaintext, OR
+- `--generate`: Generate a 32-character cryptographically random Base58-like string
 
 **Examples:**
 ```bash
 # Encode plaintext to Base58
-python cli.py base58 -e "Hello World"
+python cli.py -x base58 -e "Hello World"
 
 # Decode Base58 to plaintext
-python cli.py base58 -d "JxF12TrwUP45BMd"
+python cli.py -x base58 -d "JxF12TrwUP45BMd"
+
+# Generate a 32-character cryptographically random Base58-like string
+python cli.py -x base58 -g 32
 ```
 
 **Encode Response:**
@@ -192,13 +196,26 @@ python cli.py base58 -d "JxF12TrwUP45BMd"
 }
 ```
 
+**Generate Response:**
+The generate command outputs the random string directly to stdout (not JSON):
+```
+d2JCZ.MVcg3it]zKc_s9vjhsvy3o3Kmp
+```
+
+**Note:** The generated string is a 32-character "Base58-like" string that includes:
+- 7 uppercase letters (A-Z, excluding O)
+- 17 lowercase letters (a-z, excluding l) 
+- 3 special characters (!@#$%^&*()_+-=[],.?;)
+- 5 numeric characters (1-9, excluding 0)
+- All characters are cryptographically shuffled for security
+
 ## Environment Password Setup
 
 To use the environment password feature:
 
 1. **Encode your master password:**
    ```bash
-   python cli.py base58 -e "YourSecureMasterPasswordWithComplexity123!@#"
+   python cli.py -x base58 -e "YourSecureMasterPasswordWithComplexity123!@#"
    ```
 
 2. **Set the environment variable:**
@@ -279,12 +296,12 @@ All commands return JSON responses with consistent error formatting:
 
 The master password must meet the following complexity requirements:
 
-- **Minimum Length**: At least 32 characters
+- **Length**: From 32 to 512 characters long
 - **Character Classes**: Must contain at least one character from each of the following classes:
   - Uppercase letters (A-Z)
   - Lowercase letters (a-z)
   - Numbers (0-9)
-  - Symbols (!@#$%^&*()_+-=[]{}|;:,.<>?)
+  - Symbols (!@#$%^&*_+-=[];,.?)
 
 **Valid Password Examples:**
 - `"MySecureMasterPasswordWithComplexity123!@#"`
@@ -302,7 +319,7 @@ The master password must meet the following complexity requirements:
 3. **Data Directory**: Ensure the data directory has appropriate permissions
 4. **JSON Input**: Be careful with JSON input to avoid injection attacks
 5. **Temporary Files**: The system creates temporary files during operations; ensure they're cleaned up
-6. **Key Derivation Iterations**: The iterations parameter controls the computational cost of key derivation. Higher values provide better security but slower performance. The minimum of 500,000 iterations provides a good balance of security and performance.
+6. **Key Derivation Iterations**: The iterations parameter controls the computational cost of key derivation. Higher values provide better security but slower performance. The minimum of 100,000 iterations provides a good balance for testing and fast usage.
 
 ## Examples
 
@@ -319,7 +336,7 @@ python cli.py -p "MySecureMasterPasswordWithComplexity123!@#" -d ~/.key-custodia
   -m '{"service": "github", "notes": "Primary GitHub account"}'
 
 # 2a. Save a credential with custom iterations (optional)
-python cli.py -p "MySecureMasterPasswordWithComplexity123!@#" -d ~/.key-custodian -i 500000 save \
+python cli.py -p "MySecureMasterPasswordWithComplexity123!@#" -d ~/.key-custodian -i 100000 save \
   -n "GitHub Account" \
   -c '{"username": "johndoe", "password": "secure123", "email": "john@example.com"}' \
   -m '{"service": "github", "notes": "Primary GitHub account"}'

@@ -27,4 +27,3 @@ class ValidationError(KeyCustodianError):
 
 class MasterKeyError(KeyCustodianError):
     """Raised when master key operations fail."""
-
