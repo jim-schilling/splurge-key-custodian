@@ -19,10 +19,33 @@ from splurge_key_custodian.exceptions import ValidationError
 class CryptoUtils:
     """Cryptographic utilities for key operations."""
     
-    B58_ALPHA_UPPER = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
-    B58_ALPHA_LOWER = 'abcdefghijkmnopqrstuvwxyz'
-    B58_SPECIAL = '!@#$%^&*()_+-=[],.?;'
-    B58_NUMERIC = '123456789'    
+    _B58_ALPHA_UPPER = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+    _B58_ALPHA_LOWER = 'abcdefghijkmnopqrstuvwxyz'    
+    _B58_DIGIT = '123456789'    
+    _ALLOWABLE_SPECIAL = '!@#$%^&*_+-=[],.?;'
+    _CHAR_CLASS_MIN_LENGTH = 2
+    _RND_ALPHA_CHAR_MIN_LENGTH =  7
+
+
+    @classmethod
+    def B58_ALPHA_UPPER(cls) -> str:
+        return cls._B58_ALPHA_UPPER
+    
+    @classmethod
+    def B58_ALPHA_LOWER(cls) -> str:
+        return cls._B58_ALPHA_LOWER
+    
+    @classmethod
+    def B58_DIGIT(cls) -> str:
+        return cls._B58_DIGIT
+    
+    @classmethod
+    def ALLOWABLE_SPECIAL(cls) -> str:
+        return cls._ALLOWABLE_SPECIAL
+    
+    @classmethod
+    def B58_LIKE_CHAR_CLASS(cls) -> str:
+        return cls._B58_ALPHA_UPPER + cls._B58_ALPHA_LOWER + cls._B58_DIGIT + cls._ALLOWABLE_SPECIAL
 
     @staticmethod
     def constant_time_compare(a: bytes, b: bytes) -> bool:
@@ -38,16 +61,27 @@ class CryptoUtils:
         return hmac.compare_digest(a, b)
 
     @classmethod
-    def generate_base58_like_random_string(cls) -> str:
+    def generate_base58_like_random_string(cls, length: int | None = None) -> str:
         """Generate a random Base58-like string.
+
+        Args:
+            length: Length of the string (default: None, which means the minimum length)
 
         Returns:
             Random Base58-like string
-        """
-        result = ''.join(secrets.choice(cls.B58_ALPHA_UPPER) for _ in range(7))
-        result += ''.join(secrets.choice(cls.B58_ALPHA_LOWER) for _ in range(17))
-        result += ''.join(secrets.choice(cls.B58_SPECIAL) for _ in range(3))
-        result += ''.join(secrets.choice(cls.B58_NUMERIC) for _ in range(5))
+        """        
+        if length is None or length < Constants.MIN_PASSWORD_LENGTH():
+            length = Constants.MIN_PASSWORD_LENGTH()
+        elif length > Constants.MAX_PASSWORD_LENGTH():
+            length = Constants.MAX_PASSWORD_LENGTH()
+
+        result = ''.join(secrets.choice(cls.B58_ALPHA_UPPER()) for _ in range(cls._CHAR_CLASS_MIN_LENGTH))
+        result += ''.join(secrets.choice(cls.B58_ALPHA_LOWER()) for _ in range(cls._CHAR_CLASS_MIN_LENGTH))
+        result += ''.join(secrets.choice(cls.ALLOWABLE_SPECIAL()) for _ in range(cls._CHAR_CLASS_MIN_LENGTH))
+        result += ''.join(secrets.choice(cls.B58_DIGIT()) for _ in range(cls._CHAR_CLASS_MIN_LENGTH))
+
+        # Add more characters to the result to increase the length
+        result += ''.join(secrets.choice(cls.B58_LIKE_CHAR_CLASS()) for _ in range(length - len(result)))
         
         # Use cryptographically secure Fisher-Yates shuffle
         result_list = list(result)

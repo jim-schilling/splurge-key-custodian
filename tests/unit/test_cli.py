@@ -16,6 +16,7 @@ from splurge_key_custodian.exceptions import (
     EncryptionError,
 )
 from splurge_key_custodian.base58 import Base58
+from splurge_key_custodian.constants import Constants
 
 
 class TestKeyCustodianCLIUnit(unittest.TestCase):
@@ -247,13 +248,14 @@ class TestKeyCustodianCLIUnit(unittest.TestCase):
             self.cli.run([
                 "--advanced",
                 "base58",
-                "-g"
+                "-g",
+                "32"
             ])
 
         output = mock_stdout.getvalue()
         # Should generate a 32-character Base58-like string
         self.assertIsInstance(output.strip(), str)
-        self.assertEqual(len(output.strip()), 32)
+        self.assertEqual(len(output.strip()), Constants.MIN_PASSWORD_LENGTH())
         
         # Verify it contains the expected character sets
         from splurge_key_custodian.crypto_utils import CryptoUtils
@@ -261,10 +263,10 @@ class TestKeyCustodianCLIUnit(unittest.TestCase):
         
         # Check that the generated string contains characters from all expected sets
         string_chars = set(generated_string)
-        self.assertTrue(any(c in CryptoUtils.B58_ALPHA_UPPER for c in string_chars))
-        self.assertTrue(any(c in CryptoUtils.B58_ALPHA_LOWER for c in string_chars))
-        self.assertTrue(any(c in CryptoUtils.B58_SPECIAL for c in string_chars))
-        self.assertTrue(any(c in CryptoUtils.B58_NUMERIC for c in string_chars))
+        self.assertTrue(any(c in CryptoUtils.B58_ALPHA_UPPER() for c in string_chars))
+        self.assertTrue(any(c in CryptoUtils.B58_ALPHA_LOWER() for c in string_chars))
+        self.assertTrue(any(c in CryptoUtils.ALLOWABLE_SPECIAL() for c in string_chars))
+        self.assertTrue(any(c in CryptoUtils.B58_DIGIT() for c in string_chars))
 
     def test_run_base58_both_args_error(self):
         """Test base58 command with both encode and decode args."""

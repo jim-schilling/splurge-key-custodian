@@ -17,7 +17,7 @@ def main():
     try:
         result = subprocess.run([
             sys.executable, "-m", "splurge_key_custodian.cli", 
-            "--advanced", "base58", "-g"
+            "--advanced", "base58", "-g", "32"
         ], capture_output=True, text=True, check=True)
         print(f"   Output: {result.stdout.strip()}")
     except subprocess.CalledProcessError as e:
@@ -30,7 +30,7 @@ def main():
         try:
             result = subprocess.run([
                 sys.executable, "-m", "splurge_key_custodian.cli", 
-                "--advanced", "base58", "-g"
+                "--advanced", "base58", "-g", "32"
             ], capture_output=True, text=True, check=True)
             print(f"   String {i+1}: {result.stdout.strip()}")
         except subprocess.CalledProcessError as e:
@@ -39,10 +39,10 @@ def main():
     # Example 3: Show the character composition
     print("\n3. Character composition of generated strings:")
     print("   Each 32-character string contains:")
-    print("   - 7 uppercase letters (A-Z, excluding O)")
-    print("   - 17 lowercase letters (a-z, excluding l)")
-    print("   - 3 special characters (!@#$%^&*()_+-=[],.?;)")
-    print("   - 5 numeric characters (1-9, excluding 0)")
+    print("   - 2 or more uppercase letters (A-Z, excluding O)")
+    print("   - 2 or more lowercase letters (a-z, excluding l)")
+    print("   - 2 or more special characters (!@#$%^&*()_+-=[],.?;)")
+    print("   - 2 or more numeric characters (1-9, excluding 0)")
     print("   - All characters are cryptographically shuffled")
     
     # Example 4: Show help

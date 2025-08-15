@@ -160,9 +160,9 @@ python cli.py -p "MySecureMasterPasswordWithComplexity123!@#" -d /path/to/data m
 Encode plaintext to Base58 format, decode Base58 to plaintext, or generate cryptographically secure random strings.
 
 **Required Arguments:**
-- `-encode`: Plaintext string to encode to Base58, OR
-- `-decode`: Base58 string to decode to plaintext, OR
-- `-generate`: Generate a 32-character cryptographically random Base58-like string
+- `--encode`: Plaintext string to encode to Base58, OR
+- `--decode`: Base58 string to decode to plaintext, OR
+- `--generate`: Generate a 32-character cryptographically random Base58-like string
 
 **Examples:**
 ```bash
@@ -173,7 +173,7 @@ python cli.py -x base58 -e "Hello World"
 python cli.py -x base58 -d "JxF12TrwUP45BMd"
 
 # Generate a 32-character cryptographically random Base58-like string
-python cli.py -x base58 -g
+python cli.py -x base58 -g 32
 ```
 
 **Encode Response:**
@@ -296,12 +296,12 @@ All commands return JSON responses with consistent error formatting:
 
 The master password must meet the following complexity requirements:
 
-- **Minimum Length**: At least 32 characters
+- **Length**: From 32 to 512 characters long
 - **Character Classes**: Must contain at least one character from each of the following classes:
   - Uppercase letters (A-Z)
   - Lowercase letters (a-z)
   - Numbers (0-9)
-  - Symbols (!@#$%^&*()_+-=[]{}|;:,.<>?)
+  - Symbols (!@#$%^&*_+-=[];,.?)
 
 **Valid Password Examples:**
 - `"MySecureMasterPasswordWithComplexity123!@#"`

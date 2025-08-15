@@ -49,7 +49,7 @@ pip install -e ".[dev]"
 ```python
 from splurge_key_custodian import KeyCustodian
 
-# Initialize the key custodian with default iterations (1,000,000)
+# Initialize the key custodian with default iterations (100,000)
 custodian = KeyCustodian(
     master_password="A very long passphrase of at least 32 characters",
     data_dir="/path/to/credentials"
@@ -59,7 +59,7 @@ custodian = KeyCustodian(
 custodian = KeyCustodian(
     master_password="A very long passphrase of at least 32 characters",
     data_dir="/path/to/credentials",
-    iterations=100000
+    iterations=200000
 )
 
 # Create a new credential
@@ -99,10 +99,10 @@ python -m splurge_key_custodian -p "my-master-password" -d /path/to/data list
 # Validate master password
 python -m splurge_key_custodian -p "my-master-password" -d /path/to/data master
 
-# Base58 encode/decode (requires -x or --advanced flag)
+# Base58 encode/decode/generate (requires -x or --advanced flag)
 python -m splurge_key_custodian -x base58 -e "Hello, World!"
 python -m splurge_key_custodian -x base58 -d "JxF12TrwUP45BMd"
-python -m splurge_key_custodian -x base58 -g
+python -m splurge_key_custodian -x base58 -g 48
 ```
 
 ## Configuration
@@ -149,10 +149,15 @@ KeyCustodian(master_password: str, data_dir: str, *, iterations: Optional[int] =
 
 - `master_password`: Master password for encrypting/decrypting keys. Policy: at least 32 characters.
 - `data_dir`: Directory to store key files
-- `iterations`: Number of iterations for key derivation (default: 1,000,000, minimum: 100,000)
+- `iterations`: Number of iterations for key derivation (default: 500,000, minimum: 100,000)
 
 **Password Requirements:**
-- **Minimum length**: 32 characters
+- **Length**: From 32 to 512 characters long
+- **Character Classes**: Must contain at least one character from each of the following classes:
+  - Uppercase letters (A-Z, except I, O)
+  - Lowercase letters (a-z, except l)
+  - Numbers (1-9, except 0)
+  - Symbols (!@#$%^&*_+-=[];,.?)
 
 **Example valid passwords:**
 - `"This is a long passphrase with at least thirty-two characters"`

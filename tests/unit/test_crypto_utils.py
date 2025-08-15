@@ -5,7 +5,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 
 from splurge_key_custodian.base58 import Base58, Base58ValidationError
-
+from splurge_key_custodian.constants import Constants
 from splurge_key_custodian.crypto_utils import CryptoUtils
 from splurge_key_custodian.exceptions import EncryptionError
 from splurge_key_custodian.exceptions import ValidationError
@@ -19,7 +19,7 @@ class TestCryptoUtils(unittest.TestCase):
         key = CryptoUtils.generate_random_key()
         
         self.assertIsInstance(key, bytes)
-        self.assertEqual(len(key), 32)  # 256 bits = 32 bytes
+        self.assertEqual(len(key), Constants.KEY_SIZE_BYTES())  # 256 bits = 32 bytes
         
         # Test that keys are different
         key2 = CryptoUtils.generate_random_key()
@@ -33,7 +33,7 @@ class TestCryptoUtils(unittest.TestCase):
         key = CryptoUtils.derive_key_from_password(password, salt)
         
         self.assertIsInstance(key, bytes)
-        self.assertEqual(len(key), 32)  # 256 bits = 32 bytes
+        self.assertEqual(len(key), Constants.KEY_SIZE_BYTES())  # 256 bits = 32 bytes
         
         # Same password and salt should produce same key
         key2 = CryptoUtils.derive_key_from_password(password, salt)
@@ -105,7 +105,7 @@ class TestCryptoUtils(unittest.TestCase):
         
         self.assertIsInstance(encrypted_key, bytes)
         self.assertIsInstance(salt, bytes)
-        self.assertEqual(len(salt), 64)  # 64-byte salt
+        self.assertEqual(len(salt), Constants.DEFAULT_SALT_SIZE())  # 64-byte salt
         self.assertNotEqual(encrypted_key, key_to_encrypt)  # Should be encrypted
 
     def test_encrypt_key_with_master_custom_salt(self):
@@ -245,7 +245,7 @@ class TestCryptoUtils(unittest.TestCase):
         
         # Test with iterations too small
         with self.assertRaises(ValidationError):
-            CryptoUtils.derive_key_from_password("password", b"test-salt-32-bytes-long-for-testing", iterations=1000)
+            CryptoUtils.derive_key_from_password("password", b"test-salt-32-bytes-long-for-testing", iterations=Constants.MIN_ITERATIONS() - 1)
         
         # Test with valid parameters
         try:

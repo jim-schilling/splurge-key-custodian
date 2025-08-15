@@ -8,6 +8,7 @@ class Constants:
 
     # Password policy  
     _MIN_PASSWORD_LENGTH: int = 32
+    _MAX_PASSWORD_LENGTH: int = 512
     _MIN_ITERATIONS: int = 100_000
     _DEFAULT_ITERATIONS: int = 1_000_000
     _DEFAULT_SALT_SIZE: int = 64
@@ -18,6 +19,10 @@ class Constants:
     @classmethod
     def MIN_PASSWORD_LENGTH(cls) -> int:
         return cls._MIN_PASSWORD_LENGTH
+
+    @classmethod
+    def MAX_PASSWORD_LENGTH(cls) -> int:
+        return cls._MAX_PASSWORD_LENGTH
 
     # Iterations policy
     @classmethod

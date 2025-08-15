@@ -74,10 +74,10 @@ Examples:
   # Validate master password
   python cli.py -p "my-master-password" -d /path/to/data master
 
-  # Base58 encode/decode (requires --advanced flag)
+  # Base58 encode/decode/generate (requires -x or--advanced flag)
   python cli.py --advanced base58 -e "Hello, World!"
   python cli.py --advanced base58 -d "JxF12TrwUP45BMd"
-  python cli.py --advanced base58 -g
+  python cli.py --advanced base58 -g 32
             """,
         )
 
@@ -193,8 +193,10 @@ Examples:
         base58_parser.add_argument(
             "-g",
             "--generate",
-            action="store_true",
-            help="Generate a 32-character cryptographically random Base58-like string",
+            type=int,
+            nargs="?",
+            const=Constants.MIN_PASSWORD_LENGTH(),
+            help=f"Generate a cryptographically random Base58-like string (default: {Constants.MIN_PASSWORD_LENGTH()}, max: {Constants.MAX_PASSWORD_LENGTH()})",
         )
 
         return parser
@@ -572,21 +574,21 @@ Examples:
         *,
         encode: Optional[str],
         decode: Optional[str],
-        generate: bool
+        generate: Optional[int]
     ) -> None:
         """Handle base58 command with explicit dependencies.
 
         Args:
             encode: String to encode to Base58
             decode: Base58 string to decode
-            generate: Whether to generate a random 64-byte key
+            generate: Length of the random Base58-like string to generate
         """
         try:
             # Count how many options are specified
             options_count = sum([
                 encode is not None,
                 decode is not None,
-                generate
+                generate is not None
             ])
             
             if options_count == 0:
@@ -594,16 +596,12 @@ Examples:
             
             if options_count > 1:
                 raise ValidationError("Cannot specify multiple options (encode, decode, generate)")
-
-            if generate:
-                # Generate a 32-character cryptographically random Base58-like string
-                random_string = CryptoUtils.generate_base58_like_random_string()
-                print(random_string)
-            elif encode:
+            
+            if encode:
                 # Encode plaintext to Base58
                 encoded = Base58.encode(encode.encode("utf-8"))
                 print(encoded)
-            else:
+            elif decode:
                 # Decode the Base58 to plaintext
                 try:
                     decoded_bytes = Base58.decode(decode)
@@ -618,6 +616,14 @@ Examples:
 
                 except Exception as e:
                     raise ValidationError(f"Invalid Base58 string: {e}") from e
+            else:
+                # Generate a cryptographically random Base58-like string
+                if generate < Constants.MIN_PASSWORD_LENGTH():
+                    generate = Constants.MIN_PASSWORD_LENGTH()
+                elif generate > Constants.MAX_PASSWORD_LENGTH():
+                    generate = Constants.MAX_PASSWORD_LENGTH()
+                random_string = CryptoUtils.generate_base58_like_random_string(length=generate)
+                print(random_string)
 
         except ValidationError as e:
             self._print_error(message=str(e), code="validation_error")
@@ -655,9 +661,9 @@ Examples:
             if ord(char) < 32 and char != '\t' and char != '\n' and char != '\r':
                 raise ValidationError(f"Input contains control character: {repr(char)}")
         
-        # Limit input length
-        if len(value) > 1000:
-            raise ValidationError("Input too long (max 1000 characters)")
+        # Limit password length
+        if len(value) > Constants.MAX_PASSWORD_LENGTH():
+            raise ValidationError(f"Password too long (max {Constants.MAX_PASSWORD_LENGTH()} characters)")
         
         # Trim whitespace
         return value.strip()

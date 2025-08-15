@@ -62,7 +62,7 @@ class TestBase58Encoding(unittest.TestCase):
     
     def test_encode_large_data(self):
         """Test encoding large data."""
-        data = b"x" * 500  # Reduced from 1000 to 500 bytes for faster testing
+        data = b"x" * 500  
         encoded = Base58.encode(data)
         self.assertIsInstance(encoded, str)
         

@@ -123,76 +123,77 @@ class TestKeyCustodianUnit(unittest.TestCase):
         self.assertIn("Master password must be at least 32 characters long", str(cm.exception))
 
     def test_initialization_password_missing_uppercase(self):
-        """Password composition no longer enforced; only length matters."""
+        """Test that password missing uppercase is rejected."""
         password_missing_uppercase = "thisisalongpasswordwithlowercase123!@#thisislongenough"
         fresh_temp_dir = tempfile.mkdtemp()
         try:
-            KeyCustodian(
-                password_missing_uppercase,
-                fresh_temp_dir
-            )
-        except ValidationError:
-            self.fail("Password should pass with length-only policy")
+            with self.assertRaises(ValidationError) as cm:
+                KeyCustodian(
+                    password_missing_uppercase,
+                    fresh_temp_dir
+                )
+            self.assertIn("uppercase", str(cm.exception))
         finally:
             import shutil
             shutil.rmtree(fresh_temp_dir, ignore_errors=True)
 
     def test_initialization_password_missing_lowercase(self):
-        """Password composition no longer enforced; only length matters."""
+        """Test that password missing lowercase is rejected."""
         password_missing_lowercase = "THISISALONGPASSWORDWITHUPPERCASE123!@#EXTRALENGTHHERE"
         fresh_temp_dir = tempfile.mkdtemp()
         try:
-            KeyCustodian(
-                password_missing_lowercase,
-                fresh_temp_dir
-            )
-        except ValidationError:
-            self.fail("Password should pass with length-only policy")
+            with self.assertRaises(ValidationError) as cm:
+                KeyCustodian(
+                    password_missing_lowercase,
+                    fresh_temp_dir
+                )
+            self.assertIn("lowercase", str(cm.exception))
         finally:
             import shutil
             shutil.rmtree(fresh_temp_dir, ignore_errors=True)
 
     def test_initialization_password_missing_numeric(self):
-        """Password composition no longer enforced; only length matters."""
+        """Test that password missing numeric is rejected."""
         password_missing_numeric = "ThisIsALongPasswordWithLetters!@#AndMoreLettersToBeLong"
         fresh_temp_dir = tempfile.mkdtemp()
         try:
-            KeyCustodian(
-                password_missing_numeric,
-                fresh_temp_dir
-            )
-        except ValidationError:
-            self.fail("Password should pass with length-only policy")
+            with self.assertRaises(ValidationError) as cm:
+                KeyCustodian(
+                    password_missing_numeric,
+                    fresh_temp_dir
+                )
+            self.assertIn("numeric", str(cm.exception))
         finally:
             import shutil
             shutil.rmtree(fresh_temp_dir, ignore_errors=True)
 
     def test_initialization_password_missing_symbol(self):
-        """Password composition no longer enforced; only length matters."""
+        """Test that password missing symbol is rejected."""
         password_missing_symbol = "ThisIsALongPasswordWithLetters123AndMoreLettersToBeLong"
         fresh_temp_dir = tempfile.mkdtemp()
         try:
-            KeyCustodian(
-                password_missing_symbol,
-                fresh_temp_dir
-            )
-        except ValidationError:
-            self.fail("Password should pass with length-only policy")
+            with self.assertRaises(ValidationError) as cm:
+                KeyCustodian(
+                    password_missing_symbol,
+                    fresh_temp_dir
+                )
+            self.assertIn("special", str(cm.exception))
         finally:
             import shutil
             shutil.rmtree(fresh_temp_dir, ignore_errors=True)
 
     def test_initialization_password_missing_multiple_classes(self):
-        """Password composition no longer enforced; only length matters."""
+        """Test that password missing multiple character classes is rejected."""
         password_missing_multiple = "thisisalongpasswordwithlowercaseonlyandmoretexttomakelong"
         fresh_temp_dir = tempfile.mkdtemp()
         try:
-            KeyCustodian(
-                password_missing_multiple,
-                fresh_temp_dir
-            )
-        except ValidationError:
-            self.fail("Password should pass with length-only policy")
+            with self.assertRaises(ValidationError) as cm:
+                KeyCustodian(
+                    password_missing_multiple,
+                    fresh_temp_dir
+                )
+            # Should fail because password lacks uppercase, numeric, and special characters
+            self.assertIn("uppercase", str(cm.exception))
         finally:
             import shutil
             shutil.rmtree(fresh_temp_dir, ignore_errors=True)
@@ -218,8 +219,8 @@ class TestKeyCustodianUnit(unittest.TestCase):
             shutil.rmtree(fresh_temp_dir, ignore_errors=True)
 
     def test_validate_master_password_complexity_valid(self):
-        """Test _validate_master_password_complexity with valid password (length-only)."""
-        valid_password = "x" * 40
+        """Test _validate_master_password_complexity with valid password."""
+        valid_password = "ThisIsAValidPasswordWithAllRequirements123!@#"
         try:
             KeyCustodian._validate_master_password_complexity(valid_password)
         except ValidationError:
@@ -234,12 +235,12 @@ class TestKeyCustodianUnit(unittest.TestCase):
         self.assertIn("Master password must be at least 32 characters long", str(cm.exception))
 
     def test_validate_master_password_complexity_missing_classes(self):
-        """Composition no longer enforced; only length matters."""
+        """Test that password missing character classes is rejected."""
         password_missing_classes = "thisisalongpasswordwithlowercaseonlyandmoretexttomakelong"
-        try:
+        with self.assertRaises(ValidationError) as cm:
             KeyCustodian._validate_master_password_complexity(password_missing_classes)
-        except ValidationError:
-            self.fail("Password should pass with length-only policy")
+        # Should fail because password lacks uppercase, numeric, and special characters
+        self.assertIn("uppercase", str(cm.exception))
 
     def test_initialization_iterations_too_low(self):
         """Test initialization with iterations below minimum."""
@@ -247,7 +248,7 @@ class TestKeyCustodianUnit(unittest.TestCase):
             KeyCustodian(
                 self.master_password,
                 self.temp_dir,
-                iterations=99999
+                iterations=Constants.MIN_ITERATIONS() - 1
             )
         
         self.assertIn("Iterations must be at least 100,000", str(cm.exception))
@@ -260,9 +261,9 @@ class TestKeyCustodianUnit(unittest.TestCase):
             custodian = KeyCustodian(
                 self.master_password,
                 fresh_temp_dir,
-                iterations=250000
+                iterations=Constants.MIN_ITERATIONS()
             )
-            self.assertEqual(custodian._iterations, 250000)
+            self.assertEqual(custodian._iterations, Constants.MIN_ITERATIONS())
         finally:
             # Clean up the fresh temporary directory
             import shutil
@@ -367,7 +368,7 @@ class TestKeyCustodianUnit(unittest.TestCase):
             self.assertIn("Master password must be at least 32 characters long", str(cm.exception))
 
     def test_init_from_environment_password_missing_complexity(self):
-        """Composition no longer enforced; only length matters. Use fresh dir to avoid mismatch."""
+        """Test that password with missing character classes is rejected."""
         env_var = "TEST_WEAK_PASSWORD"
         weak_password = "thisisalongpasswordwithlowercaseonlyandmoretexttomakelong"
         encoded_password = Base58.encode(weak_password.encode('utf-8'))
@@ -375,11 +376,26 @@ class TestKeyCustodianUnit(unittest.TestCase):
         fresh_temp_dir = tempfile.mkdtemp()
         try:
             with patch.dict(os.environ, {env_var: encoded_password}):
-                try:
-                    custodian = KeyCustodian.init_from_environment(env_var, fresh_temp_dir)
-                    self.assertIsInstance(custodian, KeyCustodian)
-                except ValidationError:
-                    self.fail("Password should pass with length-only policy")
+                with self.assertRaises(ValidationError) as cm:
+                    KeyCustodian.init_from_environment(env_var, fresh_temp_dir)
+                
+                # Should fail because password lacks uppercase, numeric, and special characters
+                self.assertIn("uppercase", str(cm.exception))
+        finally:
+            import shutil
+            shutil.rmtree(fresh_temp_dir, ignore_errors=True)
+
+    def test_init_from_environment_password_with_complexity(self):
+        """Test that password with all required character classes passes."""
+        env_var = "TEST_COMPLEX_PASSWORD"
+        complex_password = "ThisIsAComplexPassword123!WithAllRequiredClasses"
+        encoded_password = Base58.encode(complex_password.encode('utf-8'))
+        
+        fresh_temp_dir = tempfile.mkdtemp()
+        try:
+            with patch.dict(os.environ, {env_var: encoded_password}):
+                custodian = KeyCustodian.init_from_environment(env_var, fresh_temp_dir)
+                self.assertIsInstance(custodian, KeyCustodian)
         finally:
             import shutil
             shutil.rmtree(fresh_temp_dir, ignore_errors=True)
