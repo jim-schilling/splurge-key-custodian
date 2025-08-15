@@ -104,10 +104,10 @@ class TestValidationUtils(unittest.TestCase):
         """Test that validation uses the correct constants for character classes."""
         # Test with a password that uses the exact character sets from constants
         valid_chars = (
-            CryptoUtils.B58_ALPHA_UPPER()[0] +  # One uppercase
-            CryptoUtils.B58_ALPHA_LOWER()[0] +  # One lowercase  
-            CryptoUtils.B58_DIGIT()[0] +        # One digit
-            CryptoUtils.ALLOWABLE_SPECIAL()[0] + # One special
+            Constants.ALLOWABLE_ALPHA_UPPER()[0] +  # One uppercase
+            Constants.ALLOWABLE_ALPHA_LOWER()[0] +  # One lowercase  
+            Constants.ALLOWABLE_DIGITS()[0] +       # One digit
+            Constants.ALLOWABLE_SPECIAL()[0] + # One special
             "x" * (Constants.MIN_PASSWORD_LENGTH() - 4)  # Fill to minimum length
         )
         

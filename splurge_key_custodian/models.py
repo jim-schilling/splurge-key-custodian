@@ -241,7 +241,7 @@ class RotationBackup:
     backup_type: str  # "master", "bulk"
     original_data: dict[str, Any]  # Original encrypted data before rotation
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    expires_at: Optional[datetime] = None  # Optional expiration for automatic cleanup
+    expires_at: datetime | None = None  # Optional expiration for automatic cleanup
 
     def __post_init__(self) -> None:
         """Validate and process fields after initialization."""

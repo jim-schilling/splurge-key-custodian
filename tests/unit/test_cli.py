@@ -17,7 +17,6 @@ from splurge_key_custodian.exceptions import (
 )
 from splurge_key_custodian.base58 import Base58
 from splurge_key_custodian.constants import Constants
-from splurge_key_custodian.crypto_utils import CryptoUtils
 
 
 class TestKeyCustodianCLIUnit(unittest.TestCase):
@@ -262,10 +261,10 @@ class TestKeyCustodianCLIUnit(unittest.TestCase):
         
         # Check that the generated string contains characters from all expected sets
         string_chars = set(generated_string)
-        self.assertTrue(any(c in CryptoUtils.B58_ALPHA_UPPER() for c in string_chars))
-        self.assertTrue(any(c in CryptoUtils.B58_ALPHA_LOWER() for c in string_chars))
-        self.assertTrue(any(c in CryptoUtils.ALLOWABLE_SPECIAL() for c in string_chars))
-        self.assertTrue(any(c in CryptoUtils.B58_DIGIT() for c in string_chars))
+        self.assertTrue(any(c in Base58.B58_ALPHA_UPPER() for c in string_chars))
+        self.assertTrue(any(c in Base58.B58_ALPHA_LOWER() for c in string_chars))
+        self.assertTrue(any(c in Base58.B58_DIGIT() for c in string_chars))
+        self.assertTrue(any(c in Constants.ALLOWABLE_SPECIAL() for c in string_chars))
 
     def test_run_base58_both_args_error(self):
         """Test base58 command with both encode and decode args."""

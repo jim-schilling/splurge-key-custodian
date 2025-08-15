@@ -4,6 +4,8 @@ These constants centralize tunable values used across modules to keep
 behavior consistent and avoid duplication.
 """
 
+
+
 class Constants:
 
     # Password policy  
@@ -15,6 +17,10 @@ class Constants:
     _MIN_SALT_SIZE: int = 32
     _KEY_SIZE: int = 256
     _KEY_SIZE_BYTES: int = 32
+    _ALLOWABLE_ALPHA_UPPER: str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    _ALLOWABLE_ALPHA_LOWER: str = "abcdefghijklmnopqrstuvwxyz"
+    _ALLOWABLE_DIGITS: str = "0123456789"
+    _ALLOWABLE_SPECIAL: str = '!@#$%^&*_+-=[],.?;'
 
     # Key rotation policy
     _MAX_ROTATION_HISTORY: int = 10  # Maximum number of rotation history entries to keep
@@ -22,6 +28,22 @@ class Constants:
     _MAX_BACKUP_SIZE_MB: int = 100  # Maximum backup size in MB
     _ROTATION_BATCH_SIZE: int = 50  # Number of credentials to rotate in a batch
 
+    @classmethod
+    def ALLOWABLE_ALPHA_UPPER(cls) -> str:
+        return cls._ALLOWABLE_ALPHA_UPPER
+
+    @classmethod
+    def ALLOWABLE_ALPHA_LOWER(cls) -> str:
+        return cls._ALLOWABLE_ALPHA_LOWER
+    
+    @classmethod
+    def ALLOWABLE_DIGITS(cls) -> str:
+        return cls._ALLOWABLE_DIGITS
+    
+    @classmethod
+    def ALLOWABLE_SPECIAL(cls) -> str:
+        return cls._ALLOWABLE_SPECIAL
+    
     @classmethod
     def MIN_PASSWORD_LENGTH(cls) -> int:
         return cls._MIN_PASSWORD_LENGTH

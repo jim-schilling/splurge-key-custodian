@@ -27,22 +27,22 @@ def validate_master_password_complexity(password: str) -> None:
             f"Master password must be less than {Constants.MAX_PASSWORD_LENGTH()} characters long"
         )
     
-    if not any(c in CryptoUtils.B58_ALPHA_UPPER() for c in password):
+    if not any(c in Constants.ALLOWABLE_ALPHA_UPPER() for c in password):
         raise ValidationError(
             "Master password must contain at least one uppercase letter"
         )
     
-    if not any(c in CryptoUtils.B58_ALPHA_LOWER() for c in password):
+    if not any(c in Constants.ALLOWABLE_ALPHA_LOWER() for c in password):
         raise ValidationError(
             "Master password must contain at least one lowercase letter"
         )
     
-    if not any(c in CryptoUtils.B58_DIGIT() for c in password):
+    if not any(c in Constants.ALLOWABLE_DIGITS() for c in password):
         raise ValidationError(
             "Master password must contain at least one numeric character"
         )
     
-    if not any(c in CryptoUtils.ALLOWABLE_SPECIAL() for c in password):
+    if not any(c in Constants.ALLOWABLE_SPECIAL() for c in password):
         raise ValidationError(
             "Master password must contain at least one special character"
         )

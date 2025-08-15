@@ -1167,7 +1167,7 @@ Examples:
         # Trim whitespace
         return value.strip()
 
-    def run(self, args: Optional[list[str]] = None) -> None:
+    def run(self, args: list[str] | None = None) -> None:
         """Run the CLI with given arguments."""
         try:
             parsed_args = self._parser.parse_args(args)

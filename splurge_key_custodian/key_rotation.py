@@ -13,6 +13,7 @@ from splurge_key_custodian.base58 import Base58
 from splurge_key_custodian.constants import Constants
 from splurge_key_custodian.crypto_utils import CryptoUtils
 from splurge_key_custodian.exceptions import (
+    FileOperationError,
     KeyRotationError,
     ValidationError,
 )
@@ -902,7 +903,7 @@ class KeyRotationManager:
         # Save updated history
         self._file_manager.save_rotation_history(history)
 
-    def _find_backup_for_rotation(self, rotation_id: str) -> Optional[RotationBackup]:
+    def _find_backup_for_rotation(self, rotation_id: str) -> RotationBackup | None:
         """Find backup for a specific rotation.
 
         Args:
@@ -1002,16 +1003,86 @@ class KeyRotationManager:
     ) -> None:
         """Restore credential files from backup data.
 
+        This method handles various failure scenarios during credential restoration:
+        - Backup data corruption: Invalid credential data structure
+        - File system errors: Disk write failures, permission issues
+        - Memory errors: Large credential data processing failures
+        - Partial restoration: Some credentials succeed, others fail
+
         Args:
             credential_data: Dictionary mapping key_id to credential data
+
+        Raises:
+            KeyRotationError: If restoration fails completely or backup data is corrupted
+            FileOperationError: If individual credential files cannot be saved
         """
+        if not isinstance(credential_data, dict):
+            raise KeyRotationError(
+                f"Invalid backup data format: expected dict, got {type(credential_data).__name__}"
+            )
+
+        failed_restorations = []
+        successful_restorations = []
+
         for key_id, credential_data_item in credential_data.items():
-            # Convert dictionary to CredentialFile object if needed
-            if isinstance(credential_data_item, dict):
-                credential_file = CredentialFile.from_dict(credential_data_item)
-            else:
-                credential_file = credential_data_item
-            self._file_manager.save_credential_file(key_id, credential_file)
+            try:
+                # Validate key_id format
+                if not isinstance(key_id, str) or not key_id.strip():
+                    logger.error(f"Invalid key_id in backup data: {key_id}")
+                    failed_restorations.append((key_id, "Invalid key_id format"))
+                    continue
+
+                # Convert dictionary to CredentialFile object if needed
+                if isinstance(credential_data_item, dict):
+                    try:
+                        credential_file = CredentialFile.from_dict(credential_data_item)
+                    except (KeyError, ValueError, TypeError) as e:
+                        logger.error(f"Failed to parse credential data for {key_id}: {e}")
+                        failed_restorations.append((key_id, f"Data parsing error: {e}"))
+                        continue
+                elif isinstance(credential_data_item, CredentialFile):
+                    credential_file = credential_data_item
+                else:
+                    logger.error(f"Invalid credential data type for {key_id}: {type(credential_data_item).__name__}")
+                    failed_restorations.append((key_id, f"Invalid data type: {type(credential_data_item).__name__}"))
+                    continue
+
+                # Save credential file
+                try:
+                    self._file_manager.save_credential_file(key_id, credential_file)
+                    successful_restorations.append(key_id)
+                    logger.debug(f"Successfully restored credential: {key_id}")
+                except FileOperationError as e:
+                    logger.error(f"Failed to save credential file for {key_id}: {e}")
+                    failed_restorations.append((key_id, f"File operation error: {e}"))
+                except Exception as e:
+                    logger.error(f"Unexpected error saving credential {key_id}: {e}")
+                    failed_restorations.append((key_id, f"Unexpected error: {e}"))
+
+            except Exception as e:
+                logger.error(f"Unexpected error processing credential {key_id}: {e}")
+                failed_restorations.append((key_id, f"Processing error: {e}"))
+
+        # Handle restoration results
+        if not successful_restorations and failed_restorations:
+            # Complete failure - no credentials restored
+            error_details = "; ".join([f"{key_id}: {error}" for key_id, error in failed_restorations])
+            raise KeyRotationError(
+                f"Bulk rotation rollback failed completely. Failed restorations: {error_details}"
+            )
+        elif failed_restorations:
+            # Partial failure - some credentials restored, others failed
+            error_details = "; ".join([f"{key_id}: {error}" for key_id, error in failed_restorations])
+            logger.warning(
+                f"Bulk rotation rollback completed with partial failures. "
+                f"Successfully restored: {len(successful_restorations)}, "
+                f"Failed: {len(failed_restorations)}. "
+                f"Failed restorations: {error_details}"
+            )
+            # Continue with partial restoration - this is acceptable for rollback
+        else:
+            # Complete success
+            logger.info(f"Successfully restored all {len(successful_restorations)} credentials")
 
     def _rollback_bulk_rotation(
         self,
@@ -1042,5 +1113,34 @@ class KeyRotationManager:
             KeyRotationError: If the restoration process fails completely
             FileOperationError: If individual credential files cannot be saved
         """
-        # Restore original credential files using shared method
-        self._restore_credential_files(backup.original_data)
+        try:
+            # Validate backup data structure
+            if not hasattr(backup, 'original_data') or backup.original_data is None:
+                raise KeyRotationError("Backup data is missing or corrupted")
+
+            if not isinstance(backup.original_data, dict):
+                raise KeyRotationError(
+                    f"Invalid backup data format: expected dict, got {type(backup.original_data).__name__}"
+                )
+
+            # Check if backup contains credential data
+            if not backup.original_data:
+                raise KeyRotationError("Backup contains no credential data to restore")
+
+            logger.info(f"Starting bulk rotation rollback for {len(backup.original_data)} credentials")
+
+            # Restore original credential files using shared method
+            self._restore_credential_files(backup.original_data)
+
+            logger.info("Bulk rotation rollback completed successfully")
+
+        except KeyRotationError:
+            # Re-raise KeyRotationError as-is
+            raise
+        except FileOperationError as e:
+            # Wrap FileOperationError in KeyRotationError for consistency
+            raise KeyRotationError(f"Bulk rotation rollback failed due to file operation error: {e}") from e
+        except Exception as e:
+            # Catch any other unexpected errors
+            logger.error(f"Unexpected error during bulk rotation rollback: {e}")
+            raise KeyRotationError(f"Bulk rotation rollback failed due to unexpected error: {e}") from e

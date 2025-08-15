@@ -11,6 +11,7 @@ from io import StringIO
 
 import pytest
 
+from splurge_key_custodian.constants import Constants
 from splurge_key_custodian.cli import KeyCustodianCLI
 
 
@@ -51,7 +52,7 @@ class TestCLIRotation:
         
         try:
             # Create CLI args
-            args = cli_args_base + ["rotate-master", "--new-iterations", "1500000"]
+            args = cli_args_base + ["rotate-master", "--new-iterations", str(Constants.MIN_ITERATIONS() + 1)]
             
             # Run CLI
             cli = KeyCustodianCLI()
@@ -69,7 +70,7 @@ class TestCLIRotation:
             # Verify KeyCustodian was called correctly
             mock_key_custodian_class.assert_called_once()
             mock_custodian.rotate_master_key.assert_called_once_with(
-                new_iterations=1500000,
+                new_iterations=Constants.MIN_ITERATIONS() + 1,
                 create_backup=True,
                 backup_retention_days=None
             )
@@ -92,7 +93,7 @@ class TestCLIRotation:
         try:
             # Create CLI args
             new_password = "NewSecureMasterPassword456!@#ExtraLongEnough"
-            args = cli_args_base + ["change-password", "--new-password", new_password, "--new-iterations", "1500000"]
+            args = cli_args_base + ["change-password", "--new-password", new_password, "--new-iterations", str(Constants.MIN_ITERATIONS() + 1)]
             
             # Run CLI
             cli = KeyCustodianCLI()
@@ -111,7 +112,7 @@ class TestCLIRotation:
             mock_key_custodian_class.assert_called_once()
             mock_custodian.change_master_password.assert_called_once_with(
                 new_master_password=new_password,
-                new_iterations=1500000,
+                new_iterations=Constants.MIN_ITERATIONS() + 1,
                 create_backup=True,
                 backup_retention_days=None
             )
@@ -133,7 +134,7 @@ class TestCLIRotation:
         
         try:
             # Create CLI args
-            args = cli_args_base + ["rotate-credentials", "--iterations", "1500000", "--batch-size", "25"]
+            args = cli_args_base + ["rotate-credentials", "--iterations", str(Constants.MIN_ITERATIONS() + 1), "--batch-size", "25"]
             
             # Run CLI
             cli = KeyCustodianCLI()
@@ -151,7 +152,7 @@ class TestCLIRotation:
             # Verify KeyCustodian was called correctly
             mock_key_custodian_class.assert_called_once()
             mock_custodian.rotate_all_credentials.assert_called_once_with(
-                iterations=1500000,
+                iterations=Constants.MIN_ITERATIONS() + 1,
                 create_backup=True,
                 backup_retention_days=None,
                 batch_size=25

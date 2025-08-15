@@ -23,9 +23,28 @@ class Base58:
     "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
     """
 
-    _ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
-    _BASE = len(_ALPHABET)
+    _B58_ALPHA_UPPER = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+    _B58_ALPHA_LOWER = 'abcdefghijkmnopqrstuvwxyz'    
+    _B58_DIGIT = '123456789' 
+    _B58_CHARS = _B58_DIGIT + _B58_ALPHA_UPPER + _B58_ALPHA_LOWER 
+    _BASE = len(_B58_CHARS)
 
+    @classmethod
+    def B58_ALPHA_UPPER(cls) -> str:
+        return cls._B58_ALPHA_UPPER
+    
+    @classmethod
+    def B58_ALPHA_LOWER(cls) -> str:
+        return cls._B58_ALPHA_LOWER
+    
+    @classmethod
+    def B58_DIGIT(cls) -> str:
+        return cls._B58_DIGIT  
+    
+    @classmethod
+    def B58_CHARS(cls) -> str:
+        return cls._B58_CHARS
+    
     @classmethod
     def encode(cls, data: bytes) -> str:
         """
@@ -50,18 +69,18 @@ class Base58:
 
         # Handle zero case
         if num == 0:
-            return cls._ALPHABET[0] * len(data)
+            return cls._B58_CHARS[0] * len(data)
 
         # Convert to base-58
         result = ""
         while num > 0:
             num, remainder = divmod(num, cls._BASE)
-            result = cls._ALPHABET[remainder] + result
+            result = cls._B58_CHARS[remainder] + result
 
         # Add leading zeros for each leading zero byte in original data
         for byte in data:
             if byte == 0:
-                result = cls._ALPHABET[0] + result
+                result = cls._B58_CHARS[0] + result
             else:
                 break
 
@@ -96,7 +115,7 @@ class Base58:
         # Count leading '1' characters
         leading_ones = 0
         for char in base58_data:
-            if char == cls._ALPHABET[0]:
+            if char == cls._B58_CHARS[0]:
                 leading_ones += 1
             else:
                 break
@@ -108,7 +127,7 @@ class Base58:
         # Convert base-58 to integer (skip leading ones)
         num = 0
         for char in base58_data[leading_ones:]:
-            num = num * cls._BASE + cls._ALPHABET.index(char)
+            num = num * cls._BASE + cls._B58_CHARS.index(char)
 
         # Convert integer to bytes
         if num == 0:
@@ -139,7 +158,7 @@ class Base58:
             return False
 
         try:
-            return all(char in cls._ALPHABET for char in base58_data)
+            return all(char in cls._B58_CHARS for char in base58_data)
         except Exception:
             return False
 

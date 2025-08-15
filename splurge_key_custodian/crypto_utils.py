@@ -4,8 +4,6 @@ import base64
 import hmac
 import secrets
 
-from typing import Optional
-
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
@@ -17,35 +15,14 @@ from splurge_key_custodian.exceptions import ValidationError
 
 
 class CryptoUtils:
-    """Cryptographic utilities for key operations."""
-    
-    _B58_ALPHA_UPPER = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
-    _B58_ALPHA_LOWER = 'abcdefghijkmnopqrstuvwxyz'    
-    _B58_DIGIT = '123456789'    
-    _ALLOWABLE_SPECIAL = '!@#$%^&*_+-=[],.?;'
+    """Cryptographic utilities for key operations."""    
+           
     _CHAR_CLASS_MIN_LENGTH = 2
-    _RND_ALPHA_CHAR_MIN_LENGTH =  7
-
-
-    @classmethod
-    def B58_ALPHA_UPPER(cls) -> str:
-        return cls._B58_ALPHA_UPPER
-    
-    @classmethod
-    def B58_ALPHA_LOWER(cls) -> str:
-        return cls._B58_ALPHA_LOWER
-    
-    @classmethod
-    def B58_DIGIT(cls) -> str:
-        return cls._B58_DIGIT
-    
-    @classmethod
-    def ALLOWABLE_SPECIAL(cls) -> str:
-        return cls._ALLOWABLE_SPECIAL
+    _RND_ALPHA_CHAR_MIN_LENGTH =  7    
     
     @classmethod
     def B58_LIKE_CHAR_CLASS(cls) -> str:
-        return cls._B58_ALPHA_UPPER + cls._B58_ALPHA_LOWER + cls._B58_DIGIT + cls._ALLOWABLE_SPECIAL
+        return Base58.B58_CHARS() + Constants.ALLOWABLE_SPECIAL()
 
     @staticmethod
     def constant_time_compare(a: bytes, b: bytes) -> bool:
@@ -75,10 +52,10 @@ class CryptoUtils:
         elif length > Constants.MAX_PASSWORD_LENGTH():
             length = Constants.MAX_PASSWORD_LENGTH()
 
-        result = ''.join(secrets.choice(cls.B58_ALPHA_UPPER()) for _ in range(cls._CHAR_CLASS_MIN_LENGTH))
-        result += ''.join(secrets.choice(cls.B58_ALPHA_LOWER()) for _ in range(cls._CHAR_CLASS_MIN_LENGTH))
-        result += ''.join(secrets.choice(cls.ALLOWABLE_SPECIAL()) for _ in range(cls._CHAR_CLASS_MIN_LENGTH))
-        result += ''.join(secrets.choice(cls.B58_DIGIT()) for _ in range(cls._CHAR_CLASS_MIN_LENGTH))
+        result = ''.join(secrets.choice(Base58.B58_ALPHA_UPPER()) for _ in range(cls._CHAR_CLASS_MIN_LENGTH))
+        result += ''.join(secrets.choice(Base58.B58_ALPHA_LOWER()) for _ in range(cls._CHAR_CLASS_MIN_LENGTH))
+        result += ''.join(secrets.choice(Constants.ALLOWABLE_SPECIAL()) for _ in range(cls._CHAR_CLASS_MIN_LENGTH))
+        result += ''.join(secrets.choice(Base58.B58_DIGIT()) for _ in range(cls._CHAR_CLASS_MIN_LENGTH))
 
         # Add more characters to the result to increase the length
         result += ''.join(secrets.choice(cls.B58_LIKE_CHAR_CLASS()) for _ in range(length - len(result)))
@@ -257,7 +234,9 @@ class CryptoUtils:
         cls, 
         key: bytes, 
         master_key: bytes, 
-        salt: Optional[bytes] = None
+        salt: bytes | None = None,
+        *,
+        iterations: int | None = None
     ) -> tuple[bytes, bytes]:
         """Encrypt a key using a master key.
 
@@ -265,6 +244,7 @@ class CryptoUtils:
             key: Key to encrypt
             master_key: Master key for encryption
             salt: Salt for key derivation (generated if not provided)
+            iterations: Number of iterations for key derivation (default: 1,000,000)
 
         Returns:
             Tuple of (encrypted_key, salt)
@@ -277,7 +257,7 @@ class CryptoUtils:
 
         try:
             # Derive a key from the master key using the salt
-            derived_key = cls.derive_key_from_master_key(master_key, salt)
+            derived_key = cls.derive_key_from_master_key(master_key, salt, iterations=iterations)
 
             # Encrypt the key using the derived key
             encrypted_key = cls.encrypt_with_fernet(derived_key, key)
@@ -292,7 +272,9 @@ class CryptoUtils:
         cls, 
         encrypted_key: bytes, 
         master_key: bytes, 
-        salt: bytes
+        salt: bytes,
+        *,
+        iterations: int | None = None
     ) -> bytes:
         """Decrypt a key using a master key.
 
@@ -300,6 +282,7 @@ class CryptoUtils:
             encrypted_key: Encrypted key
             master_key: Master key for decryption
             salt: Salt used for key derivation
+            iterations: Number of iterations for key derivation (default: 1,000,000)
 
         Returns:
             Decrypted key as bytes
@@ -308,7 +291,7 @@ class CryptoUtils:
             EncryptionError: If decryption fails
         """
         try:
-            derived_key = cls.derive_key_from_master_key(master_key, salt)
+            derived_key = cls.derive_key_from_master_key(master_key, salt, iterations=iterations)
             return cls.decrypt_with_fernet(derived_key, encrypted_key)
         except Exception as e:
             raise EncryptionError(f"Key decryption failed: {e}") from e

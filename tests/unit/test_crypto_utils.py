@@ -30,26 +30,26 @@ class TestCryptoUtils(unittest.TestCase):
         password = "test-password"
         salt = b"test-salt-32-bytes-long-for-testing"
         
-        key = CryptoUtils.derive_key_from_password(password, salt)
+        key = CryptoUtils.derive_key_from_password(password, salt, iterations=Constants.MIN_ITERATIONS())
         
         self.assertIsInstance(key, bytes)
         self.assertEqual(len(key), Constants.KEY_SIZE_BYTES())  # 256 bits = 32 bytes
         
         # Same password and salt should produce same key
-        key2 = CryptoUtils.derive_key_from_password(password, salt)
+        key2 = CryptoUtils.derive_key_from_password(password, salt, iterations=Constants.MIN_ITERATIONS())
         self.assertEqual(key, key2)
         
         # Different salt should produce different key
         different_salt = b"different-salt-32-bytes-long-for-testing"
-        key3 = CryptoUtils.derive_key_from_password(password, different_salt)
+        key3 = CryptoUtils.derive_key_from_password(password, different_salt, iterations=Constants.MIN_ITERATIONS())
         self.assertNotEqual(key, key3)
 
     def test_derive_key_from_password_different_password(self):
         """Test that different passwords produce different keys."""
         salt = b"test-salt-32-bytes-long-for-testing"
         
-        key1 = CryptoUtils.derive_key_from_password("password1", salt)
-        key2 = CryptoUtils.derive_key_from_password("password2", salt)
+        key1 = CryptoUtils.derive_key_from_password("password1", salt, iterations=Constants.MIN_ITERATIONS())
+        key2 = CryptoUtils.derive_key_from_password("password2", salt, iterations=Constants.MIN_ITERATIONS())
         
         self.assertNotEqual(key1, key2)
 
@@ -101,7 +101,7 @@ class TestCryptoUtils(unittest.TestCase):
         master_key = CryptoUtils.generate_random_key()
         key_to_encrypt = CryptoUtils.generate_random_key()
         
-        encrypted_key, salt = CryptoUtils.encrypt_key_with_master(key_to_encrypt, master_key)
+        encrypted_key, salt = CryptoUtils.encrypt_key_with_master(key_to_encrypt, master_key, iterations=Constants.MIN_ITERATIONS())
         
         self.assertIsInstance(encrypted_key, bytes)
         self.assertIsInstance(salt, bytes)
@@ -114,7 +114,7 @@ class TestCryptoUtils(unittest.TestCase):
         key_to_encrypt = CryptoUtils.generate_random_key()
         custom_salt = b"custom-salt-64-bytes-long-for-testing-purposes-only"
         
-        encrypted_key, salt = CryptoUtils.encrypt_key_with_master(key_to_encrypt, master_key, custom_salt)
+        encrypted_key, salt = CryptoUtils.encrypt_key_with_master(key_to_encrypt, master_key, custom_salt, iterations=Constants.MIN_ITERATIONS())
         
         self.assertEqual(salt, custom_salt)
         self.assertNotEqual(encrypted_key, key_to_encrypt)
@@ -124,8 +124,8 @@ class TestCryptoUtils(unittest.TestCase):
         master_key = CryptoUtils.generate_random_key()
         key_to_encrypt = CryptoUtils.generate_random_key()
         
-        encrypted_key, salt = CryptoUtils.encrypt_key_with_master(key_to_encrypt, master_key)
-        decrypted_key = CryptoUtils.decrypt_key_with_master(encrypted_key, master_key, salt)
+        encrypted_key, salt = CryptoUtils.encrypt_key_with_master(key_to_encrypt, master_key, iterations=Constants.MIN_ITERATIONS())
+        decrypted_key = CryptoUtils.decrypt_key_with_master(encrypted_key, master_key, salt, iterations=Constants.MIN_ITERATIONS())
         
         self.assertEqual(decrypted_key, key_to_encrypt)
 
@@ -135,10 +135,10 @@ class TestCryptoUtils(unittest.TestCase):
         master_key2 = CryptoUtils.generate_random_key()
         key_to_encrypt = CryptoUtils.generate_random_key()
         
-        encrypted_key, salt = CryptoUtils.encrypt_key_with_master(key_to_encrypt, master_key1)
+        encrypted_key, salt = CryptoUtils.encrypt_key_with_master(key_to_encrypt, master_key1, iterations=Constants.MIN_ITERATIONS())
         
         with self.assertRaises(EncryptionError):
-            CryptoUtils.decrypt_key_with_master(encrypted_key, master_key2, salt)
+            CryptoUtils.decrypt_key_with_master(encrypted_key, master_key2, salt, iterations=Constants.MIN_ITERATIONS())
 
     def test_decrypt_key_with_master_salt_usage(self):
         """Test that the salt parameter is actually used in key derivation."""
@@ -147,28 +147,28 @@ class TestCryptoUtils(unittest.TestCase):
         
         # Encrypt with one salt
         salt1 = b"first-salt-64-bytes-long-for-testing-purposes-only"
-        encrypted_key1, _ = CryptoUtils.encrypt_key_with_master(key_to_encrypt, master_key, salt1)
+        encrypted_key1, _ = CryptoUtils.encrypt_key_with_master(key_to_encrypt, master_key, salt1, iterations=Constants.MIN_ITERATIONS())
         
         # Encrypt with a different salt
         salt2 = b"second-salt-64-bytes-long-for-testing-purposes-only"
-        encrypted_key2, _ = CryptoUtils.encrypt_key_with_master(key_to_encrypt, master_key, salt2)
+        encrypted_key2, _ = CryptoUtils.encrypt_key_with_master(key_to_encrypt, master_key, salt2, iterations=Constants.MIN_ITERATIONS())
         
         # The encrypted keys should be different because different salts produce different derived keys
         self.assertNotEqual(encrypted_key1, encrypted_key2)
         
         # Both should decrypt correctly with their respective salts
-        decrypted_key1 = CryptoUtils.decrypt_key_with_master(encrypted_key1, master_key, salt1)
-        decrypted_key2 = CryptoUtils.decrypt_key_with_master(encrypted_key2, master_key, salt2)
+        decrypted_key1 = CryptoUtils.decrypt_key_with_master(encrypted_key1, master_key, salt1, iterations=Constants.MIN_ITERATIONS())
+        decrypted_key2 = CryptoUtils.decrypt_key_with_master(encrypted_key2, master_key, salt2, iterations=Constants.MIN_ITERATIONS())
         
         self.assertEqual(decrypted_key1, key_to_encrypt)
         self.assertEqual(decrypted_key2, key_to_encrypt)
         
         # Using the wrong salt should fail
         with self.assertRaises(EncryptionError):
-            CryptoUtils.decrypt_key_with_master(encrypted_key1, master_key, salt2)
+            CryptoUtils.decrypt_key_with_master(encrypted_key1, master_key, salt2, iterations=Constants.MIN_ITERATIONS())
         
         with self.assertRaises(EncryptionError):
-            CryptoUtils.decrypt_key_with_master(encrypted_key2, master_key, salt1)
+            CryptoUtils.decrypt_key_with_master(encrypted_key2, master_key, salt1, iterations=Constants.MIN_ITERATIONS())
       
     def test_encrypt_decrypt_roundtrip(self):
         """Test complete encrypt/decrypt roundtrip."""
@@ -177,10 +177,10 @@ class TestCryptoUtils(unittest.TestCase):
         key_to_encrypt = CryptoUtils.generate_random_key()
         
         # Encrypt
-        encrypted_key, salt = CryptoUtils.encrypt_key_with_master(key_to_encrypt, master_key)
+        encrypted_key, salt = CryptoUtils.encrypt_key_with_master(key_to_encrypt, master_key, iterations=Constants.MIN_ITERATIONS())
         
         # Decrypt
-        decrypted_key = CryptoUtils.decrypt_key_with_master(encrypted_key, master_key, salt)
+        decrypted_key = CryptoUtils.decrypt_key_with_master(encrypted_key, master_key, salt, iterations=Constants.MIN_ITERATIONS())
         
         # Verify
         self.assertEqual(decrypted_key, key_to_encrypt)
@@ -204,9 +204,9 @@ class TestCryptoUtils(unittest.TestCase):
         password = "consistent-password"
         salt = b"consistent-salt-32-bytes-long-for-testing"
         
-        key1 = CryptoUtils.derive_key_from_password(password, salt)
-        key2 = CryptoUtils.derive_key_from_password(password, salt)
-        key3 = CryptoUtils.derive_key_from_password(password, salt)
+        key1 = CryptoUtils.derive_key_from_password(password, salt, iterations=Constants.MIN_ITERATIONS())
+        key2 = CryptoUtils.derive_key_from_password(password, salt, iterations=Constants.MIN_ITERATIONS())
+        key3 = CryptoUtils.derive_key_from_password(password, salt, iterations=Constants.MIN_ITERATIONS())
         
         self.assertEqual(key1, key2)
         self.assertEqual(key2, key3)
@@ -233,15 +233,15 @@ class TestCryptoUtils(unittest.TestCase):
         """Test validation in key derivation."""
         # Test with empty password
         with self.assertRaises(ValidationError):
-            CryptoUtils.derive_key_from_password("", b"test-salt-32-bytes-long-for-testing")
+            CryptoUtils.derive_key_from_password("", b"test-salt-32-bytes-long-for-testing", iterations=Constants.MIN_ITERATIONS())
         
         # Test with None password
         with self.assertRaises(ValidationError):
-            CryptoUtils.derive_key_from_password(None, b"test-salt-32-bytes-long-for-testing")
+            CryptoUtils.derive_key_from_password(None, b"test-salt-32-bytes-long-for-testing", iterations=Constants.MIN_ITERATIONS())
         
         # Test with salt too small
         with self.assertRaises(ValidationError):
-            CryptoUtils.derive_key_from_password("password", b"small-salt")
+            CryptoUtils.derive_key_from_password("password", b"small-salt", iterations=Constants.MIN_ITERATIONS())
         
         # Test with iterations too small
         with self.assertRaises(ValidationError):
@@ -249,7 +249,7 @@ class TestCryptoUtils(unittest.TestCase):
         
         # Test with valid parameters
         try:
-            CryptoUtils.derive_key_from_password("password", b"test-salt-32-bytes-long-for-testing")
+            CryptoUtils.derive_key_from_password("password", b"test-salt-32-bytes-long-for-testing", iterations=Constants.MIN_ITERATIONS())
         except ValidationError:
             self.fail("Valid parameters should not raise ValidationError")
 

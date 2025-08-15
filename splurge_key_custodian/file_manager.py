@@ -1,6 +1,7 @@
 """File management utilities for hybrid approach with separate credential files."""
 
 import json
+import logging
 import os
 import shutil
 from pathlib import Path
@@ -13,6 +14,8 @@ from splurge_key_custodian.models import (
     RotationHistory, 
     RotationBackup
 )
+
+logger = logging.getLogger(__name__)
 
 
 class FileManager:
@@ -160,7 +163,7 @@ class FileManager:
         """
         self._write_json_atomic(self._index_file, index.to_dict())
 
-    def read_credentials_index(self) -> Optional[CredentialsIndex]:
+    def read_credentials_index(self) -> CredentialsIndex | None:
         """Read credentials index from file.
 
         Returns:
@@ -195,7 +198,7 @@ class FileManager:
         file_path = self._data_dir / f"{key_id}.credential.json"
         self._write_json_atomic(file_path, credential_file.to_dict())
 
-    def read_credential_file(self, key_id: str) -> Optional[CredentialFile]:
+    def read_credential_file(self, key_id: str) -> CredentialFile | None:
         """Read individual credential file.
 
         Args:
@@ -295,7 +298,7 @@ class FileManager:
         file_path = self._backups_dir / f"{backup.backup_id}.backup.json"
         self._write_json_atomic(file_path, backup.to_dict())
 
-    def read_rotation_backup(self, backup_id: str) -> Optional[RotationBackup]:
+    def read_rotation_backup(self, backup_id: str) -> RotationBackup | None:
         """Read rotation backup from file.
 
         Args:
@@ -349,6 +352,10 @@ class FileManager:
     def cleanup_expired_backups(self) -> int:
         """Clean up expired rotation backups.
 
+        This method attempts to delete expired backup files. If individual backup
+        deletions fail due to file system errors (permissions, disk space, etc.),
+        the errors are logged but the cleanup continues with other backups.
+
         Returns:
             Number of backups cleaned up
         """
@@ -359,9 +366,12 @@ class FileManager:
                 try:
                     self.delete_rotation_backup(backup_id)
                     cleaned_count += 1
-                except Exception:
-                    # Log but continue with other backups
-                    pass
+                except (OSError, FileOperationError) as e:
+                    # Log file system errors but continue with other backups
+                    logger.warning(f"Failed to delete expired backup {backup_id}: {e}")
+                except Exception as e:
+                    # Log unexpected errors but continue with other backups
+                    logger.error(f"Unexpected error deleting expired backup {backup_id}: {e}")
         return cleaned_count
 
     def backup_files(self, backup_dir: str) -> None:
@@ -404,18 +414,37 @@ class FileManager:
             raise FileOperationError(f"Failed to create backup: {e}") from e
 
     def cleanup_temp_files(self) -> None:
-        """Clean up any temporary files that may have been left behind."""
+        """Clean up any temporary files that may have been left behind.
+        
+        This method attempts to remove temporary files that may have been left
+        behind from interrupted operations. If individual file deletions fail
+        due to file system errors, the errors are logged but cleanup continues.
+        """
         try:
             for temp_file in self._data_dir.glob("*.temp"):
-                temp_file.unlink()
+                try:
+                    temp_file.unlink()
+                except (OSError, FileNotFoundError) as e:
+                    logger.debug(f"Failed to delete temp file {temp_file}: {e}")
+                except Exception as e:
+                    logger.warning(f"Unexpected error deleting temp file {temp_file}: {e}")
+                    
             for temp_file in self._backups_dir.glob("*.temp"):
-                temp_file.unlink()
-        except Exception:
-            # Ignore cleanup errors
-            pass
+                try:
+                    temp_file.unlink()
+                except (OSError, FileNotFoundError) as e:
+                    logger.debug(f"Failed to delete temp file {temp_file}: {e}")
+                except Exception as e:
+                    logger.warning(f"Unexpected error deleting temp file {temp_file}: {e}")
+        except Exception as e:
+            logger.warning(f"Failed to access directories during temp file cleanup: {e}")
 
     def _set_secure_permissions(self, file_path: Path) -> None:
         """Set secure file permissions (owner read/write only).
+        
+        This method attempts to set secure file permissions. If permission setting
+        fails due to file system limitations or permissions, the error is logged
+        but the operation continues as this is not critical for functionality.
         
         Args:
             file_path: Path to the file to secure
@@ -423,9 +452,12 @@ class FileManager:
         try:
             # Set file permissions to owner read/write only (600)
             os.chmod(file_path, 0o600)
-        except Exception:
-            # Ignore permission errors - they may not be critical
-            pass
+        except (OSError, PermissionError) as e:
+            # Log permission errors but continue - they may not be critical
+            logger.debug(f"Failed to set secure permissions on {file_path}: {e}")
+        except Exception as e:
+            # Log unexpected errors
+            logger.warning(f"Unexpected error setting permissions on {file_path}: {e}")
 
     @property
     def data_directory(self) -> Path:

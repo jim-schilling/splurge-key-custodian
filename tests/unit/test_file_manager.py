@@ -1,15 +1,25 @@
 """Tests for the file_manager module."""
 
 import json
+import logging
 import os
 import shutil
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch, mock_open, MagicMock
 
 from splurge_key_custodian.file_manager import FileManager
-from splurge_key_custodian.models import KeyCustodianData, MasterKey, Credential, CredentialData, CredentialFile, CredentialsIndex
+from splurge_key_custodian.models import (
+    KeyCustodianData, 
+    MasterKey, 
+    Credential, 
+    CredentialData, 
+    CredentialFile, 
+    CredentialsIndex,
+    RotationBackup
+)
 from splurge_key_custodian.exceptions import FileOperationError
 
 
@@ -537,6 +547,35 @@ class TestFileManager(unittest.TestCase):
         with patch('shutil.copy2', side_effect=OSError("Copy failed")):
             with self.assertRaises(FileOperationError):
                 self.file_manager.backup_files(backup_dir)
+
+    def test_cleanup_expired_backups_logs_errors(self):
+        """Test that cleanup_expired_backups logs errors instead of silently ignoring them."""
+        # Create a test backup
+        backup = RotationBackup(
+            backup_id="test-backup",
+            rotation_id="test-rotation",
+            backup_type="master",
+            original_data={"test": "data"},
+            created_at=datetime.now(timezone.utc) - timedelta(days=10),
+            expires_at=datetime.now(timezone.utc) - timedelta(days=5)  # Expired
+        )
+        
+        # Save the backup
+        self.file_manager.save_rotation_backup(backup)
+        
+        # Mock the delete_rotation_backup method to raise an exception
+        with patch.object(self.file_manager, 'delete_rotation_backup', side_effect=OSError("Permission denied")):
+            # Run cleanup with error logging
+            with self.assertLogs(level=logging.WARNING) as log_context:
+                cleaned_count = self.file_manager.cleanup_expired_backups()
+            
+            # Verify that the error was logged
+            log_output = '\n'.join(log_context.output)
+            self.assertIn("Failed to delete expired backup test-backup", log_output)
+            self.assertIn("Permission denied", log_output)
+            
+            # Verify that cleanup continued and returned 0 (no successful deletions)
+            self.assertEqual(cleaned_count, 0)
 
 
 if __name__ == "__main__":

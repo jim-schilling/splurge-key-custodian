@@ -164,8 +164,8 @@ class KeyCustodian:
         self._data_dir = data_dir
         self._iterations = iterations
         self._file_manager = FileManager(data_dir)
-        self._credentials_index: Optional[CredentialsIndex] = None
-        self._current_master_key: Optional[MasterKey] = None
+        self._credentials_index: CredentialsIndex | None = None
+        self._current_master_key: MasterKey | None = None
         self._rotation_manager = KeyRotationManager(file_manager=self._file_manager)
         # Internal-only state; no caches or rate limiting retained
 
@@ -415,7 +415,7 @@ class KeyCustodian:
         *,
         file_manager: FileManager,
         data_dir: str,
-        credentials_index: Optional[CredentialsIndex]
+        credentials_index: CredentialsIndex | None
     ) -> bool:
         """Check if the index should be rebuilt with explicit dependencies.
 
@@ -478,7 +478,7 @@ class KeyCustodian:
         *,
         name: str,
         exclude_key_id: str | None,
-        credentials_index: Optional[CredentialsIndex]
+        credentials_index: CredentialsIndex | None
     ) -> None:
         """Check that a credential name is unique with explicit dependencies.
 
