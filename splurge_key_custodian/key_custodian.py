@@ -29,6 +29,7 @@ from splurge_key_custodian.models import (
     MasterKey,
     RotationHistory,
 )
+from splurge_key_custodian.validation_utils import validate_master_password_complexity
 
 
 class KeyCustodian:
@@ -38,38 +39,16 @@ class KeyCustodian:
     def _validate_master_password_complexity(cls, password: str) -> None:
         """Validate master password complexity requirements.
 
-        Enforces minimum length, maximum length, and character class requirements.
+        This method delegates to the shared validation utility function
+        to ensure consistent validation rules across the codebase.
 
         Args:
             password: Master password to validate
 
         Raises:
-            ValidationError: If password length requirement is not met
+            ValidationError: If password doesn't meet complexity requirements
         """
-        if len(password) < Constants.MIN_PASSWORD_LENGTH():
-            raise ValidationError(
-                f"Master password must be at least {Constants.MIN_PASSWORD_LENGTH()} characters long"
-            )
-        if len(password) > Constants.MAX_PASSWORD_LENGTH():
-            raise ValidationError(
-                f"Master password must be less than {Constants.MAX_PASSWORD_LENGTH()} characters long"
-            )
-        if not any(c in CryptoUtils.B58_ALPHA_UPPER() for c in password):
-            raise ValidationError(
-                "Master password must contain at least one uppercase letter"
-            )
-        if not any(c in CryptoUtils.B58_ALPHA_LOWER() for c in password):
-            raise ValidationError(
-                "Master password must contain at least one lowercase letter"
-            )
-        if not any(c in CryptoUtils.B58_DIGIT() for c in password):
-            raise ValidationError(
-                "Master password must contain at least one numeric character"
-            )
-        if not any(c in CryptoUtils.ALLOWABLE_SPECIAL() for c in password):
-            raise ValidationError(
-                "Master password must contain at least one special character"
-            )
+        validate_master_password_complexity(password)
 
     @classmethod
     def init_from_environment(
@@ -77,7 +56,7 @@ class KeyCustodian:
         env_variable: str,
         data_dir: str,
         *,
-        iterations: Optional[int] = None
+        iterations: int | None = None
     ) -> "KeyCustodian":
         """Create KeyCustodian instance from environment variable.
 
@@ -135,7 +114,7 @@ class KeyCustodian:
         master_password: str,
         data_dir: str,
         *,
-        iterations: Optional[int] = None
+        iterations: int | None = None
     ) -> None:
         """Initialize the Key Custodian.
 
@@ -477,7 +456,7 @@ class KeyCustodian:
     def _check_name_uniqueness(
         self, 
         name: str, 
-        exclude_key_id: Optional[str] = None
+        exclude_key_id: str | None = None
     ) -> None:
         """Check that a credential name is unique.
 
@@ -498,7 +477,7 @@ class KeyCustodian:
         self,
         *,
         name: str,
-        exclude_key_id: Optional[str],
+        exclude_key_id: str | None,
         credentials_index: Optional[CredentialsIndex]
     ) -> None:
         """Check that a credential name is unique with explicit dependencies.
@@ -541,7 +520,7 @@ class KeyCustodian:
         *,
         name: str,
         credentials: dict[str, Any],
-        meta_data: Optional[dict[str, Any]] = None,
+        meta_data: dict[str, Any] | None = None,
     ) -> str:
         """Create a new credential.
 
@@ -721,9 +700,9 @@ class KeyCustodian:
         self,
         *,
         key_id: str,
-        name: Optional[str] = None,
-        credentials: Optional[dict[str, Any]] = None,
-        meta_data: Optional[dict[str, Any]] = None,
+        name: str | None = None,
+        credentials: dict[str, Any] | None = None,
+        meta_data: dict[str, Any] | None = None,
     ) -> None:
         """Update an existing credential.
 
@@ -870,7 +849,7 @@ class KeyCustodian:
             self._credentials_index.remove_credential(key_id)
             self._file_manager.save_credentials_index(self._credentials_index)
 
-    def find_credential_by_name(self, name: str) -> Optional[dict[str, Any]]:
+    def find_credential_by_name(self, name: str) -> dict[str, Any] | None:
         """Find a credential by name.
 
         Args:
@@ -966,9 +945,9 @@ class KeyCustodian:
     def rotate_master_key(
         self,
         *,
-        new_iterations: Optional[int] = None,
+        new_iterations: int | None = None,
         create_backup: bool = True,
-        backup_retention_days: Optional[int] = None
+        backup_retention_days: int | None = None
     ) -> str:
         """Rotate the master key by generating a new encryption key from the same password.
 
@@ -998,9 +977,9 @@ class KeyCustodian:
         self,
         *,
         new_master_password: str,
-        new_iterations: Optional[int] = None,
+        new_iterations: int | None = None,
         create_backup: bool = True,
-        backup_retention_days: Optional[int] = None
+        backup_retention_days: int | None = None
     ) -> str:
         """Change the master password and rotate the master key.
 
@@ -1032,10 +1011,10 @@ class KeyCustodian:
     def rotate_all_credentials(
         self,
         *,
-        iterations: Optional[int] = None,
+        iterations: int | None = None,
         create_backup: bool = True,
-        backup_retention_days: Optional[int] = None,
-        batch_size: Optional[int] = None
+        backup_retention_days: int | None = None,
+        batch_size: int | None = None
     ) -> str:
         """Rotate encryption keys for all credentials.
 
@@ -1085,7 +1064,7 @@ class KeyCustodian:
     def get_rotation_history(
         self,
         *,
-        limit: Optional[int] = None
+        limit: int | None = None
     ) -> list[RotationHistory]:
         """Get rotation history.
 
@@ -1126,7 +1105,7 @@ class KeyCustodian:
         return len(self._credentials_index.credentials)
 
     @property
-    def iterations(self) -> Optional[int]:
+    def iterations(self) -> int | None:
         """Get the iterations value used for key derivation.
         
         Returns:

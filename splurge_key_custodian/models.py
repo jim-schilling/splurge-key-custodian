@@ -145,11 +145,11 @@ class CredentialsIndex:
                 del self._name_to_key_id[name]
             self.last_updated = datetime.now(timezone.utc)
 
-    def get_name(self, key_id: str) -> Optional[str]:
+    def get_name(self, key_id: str) -> str | None:
         """Get credential name by key_id."""
         return self.credentials.get(key_id)
 
-    def get_key_id(self, name: str) -> Optional[str]:
+    def get_key_id(self, name: str) -> str | None:
         """Get key_id by credential name."""
         return self._name_to_key_id.get(name)
 
@@ -179,9 +179,9 @@ class RotationHistory:
 
     rotation_id: str
     rotation_type: str  # "master", "bulk"
-    target_key_id: Optional[str] = None  # For future use
-    old_master_key_id: Optional[str] = None  # For master key rotations
-    new_master_key_id: Optional[str] = None  # For master key rotations
+    target_key_id: str | None = None  # For future use
+    old_master_key_id: str | None = None  # For master key rotations
+    new_master_key_id: str | None = None  # For master key rotations
     affected_credentials: list[str] = field(default_factory=list)  # List of affected key_ids
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -405,7 +405,7 @@ class MasterKey:
     key_id: str
     credentials: str
     salt: str
-    iterations: Optional[int] = None
+    iterations: int | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def __post_init__(self) -> None:

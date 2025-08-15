@@ -24,6 +24,7 @@ from splurge_key_custodian.models import (
     RotationBackup,
     RotationHistory,
 )
+from splurge_key_custodian.validation_utils import validate_master_password_complexity
 
 logger = logging.getLogger(__name__)
 
@@ -154,9 +155,9 @@ class KeyRotationManager:
         self,
         *,
         master_password: str,
-        new_iterations: Optional[int] = None,
+        new_iterations: int | None = None,
         create_backup: bool = True,
-        backup_retention_days: Optional[int] = None
+        backup_retention_days: int | None = None
     ) -> str:
         """Rotate the master encryption key while keeping the same password.
 
@@ -268,10 +269,10 @@ class KeyRotationManager:
         *,
         old_master_password: str,
         new_master_password: str,
-        old_iterations: Optional[int] = None,
-        new_iterations: Optional[int] = None,
+        old_iterations: int | None = None,
+        new_iterations: int | None = None,
         create_backup: bool = True,
-        backup_retention_days: Optional[int] = None
+        backup_retention_days: int | None = None
     ) -> str:
         """Change the master password and rotate the master key.
 
@@ -393,10 +394,10 @@ class KeyRotationManager:
         self,
         *,
         master_password: str,
-        iterations: Optional[int] = None,
+        iterations: int | None = None,
         create_backup: bool = True,
-        backup_retention_days: Optional[int] = None,
-        batch_size: Optional[int] = None
+        backup_retention_days: int | None = None,
+        batch_size: int | None = None
     ) -> str:
         """Rotate encryption keys for all credentials.
 
@@ -527,7 +528,7 @@ class KeyRotationManager:
             })
             raise KeyRotationError(f"Rollback failed: {e}") from e
 
-    def get_rotation_history(self, *, limit: Optional[int] = None) -> list[RotationHistory]:
+    def get_rotation_history(self, *, limit: int | None = None) -> list[RotationHistory]:
         """Get rotation history.
 
         Args:
@@ -552,33 +553,22 @@ class KeyRotationManager:
     def _validate_master_password_complexity(self, password: str) -> None:
         """Validate master password complexity.
 
+        This method delegates to the shared validation utility function
+        to ensure consistent validation rules across the codebase.
+
         Args:
             password: Password to validate
 
         Raises:
             ValidationError: If password doesn't meet complexity requirements
         """
-        if len(password) < 32:
-            raise ValidationError("Master password must be at least 32 characters long")
-
-        # Add more complexity requirements as needed
-        if not any(c.isupper() for c in password):
-            raise ValidationError("Master password must contain at least one uppercase letter")
-
-        if not any(c.islower() for c in password):
-            raise ValidationError("Master password must contain at least one lowercase letter")
-
-        if not any(c.isdigit() for c in password):
-            raise ValidationError("Master password must contain at least one digit")
-
-        if not any(c in "!@#$%^&*()_+-=[]{}|;:,.<>?" for c in password):
-            raise ValidationError("Master password must contain at least one special character")
+        validate_master_password_complexity(password)
 
     def _create_master_key_backup(
         self,
         rotation_id: str,
         old_master_key_data: dict[str, Any],
-        backup_retention_days: Optional[int] = None
+        backup_retention_days: int | None = None
     ) -> None:
         """Create a backup of the current master key state and all credentials.
 
@@ -619,7 +609,7 @@ class KeyRotationManager:
         self,
         rotation_id: str,
         credential_files: list[str],
-        backup_retention_days: Optional[int] = None
+        backup_retention_days: int | None = None
     ) -> None:
         """Create a backup of all credential files.
 
@@ -654,7 +644,7 @@ class KeyRotationManager:
         key_id: str,
         master_password: str,
         new_master_key: MasterKey,
-        new_iterations: Optional[int] = None
+        new_iterations: int | None = None
     ) -> None:
         """Re-encrypt a credential with a new master key.
 
@@ -728,8 +718,8 @@ class KeyRotationManager:
         current_master_password: str,
         new_master_password: str,
         new_master_salt: bytes,
-        current_iterations: Optional[int] = None,
-        new_iterations: Optional[int] = None
+        current_iterations: int | None = None,
+        new_iterations: int | None = None
     ) -> None:
         """Re-encrypt a credential for master password change.
 
@@ -801,7 +791,7 @@ class KeyRotationManager:
         self,
         key_id: str,
         master_password: str,
-        iterations: Optional[int] = None
+        iterations: int | None = None
     ) -> None:
         """Re-encrypt a credential with a new individual key.
 
@@ -939,53 +929,89 @@ class KeyRotationManager:
         """
         # Check backup structure and restore accordingly
         if isinstance(backup.original_data, dict) and "master_key" in backup.original_data:
-            # New comprehensive backup format with both master key and credentials
-            original_master_key_data = backup.original_data["master_key"]
-            original_credentials = backup.original_data["credentials"]
-            
-            # Restore original master key
-            self._file_manager.save_master_keys([original_master_key_data])
-            
-            # Restore original credentials
-            for key_id, credential_data in original_credentials.items():
-                # Convert dictionary to CredentialFile object if needed
-                if isinstance(credential_data, dict):
-                    credential_file = CredentialFile.from_dict(credential_data)
-                else:
-                    credential_file = credential_data
-                self._file_manager.save_credential_file(key_id, credential_file)
-            
-            logger.info("Master key rotation rollback completed - original master key and credentials restored")
-            
+            self._rollback_comprehensive_master_key_backup(backup)
         elif isinstance(backup.original_data, dict) and "credentials" in backup.original_data:
-            # Legacy backup format with only credentials
-            original_credentials = backup.original_data["credentials"]
-            
-            # Restore original credentials
-            for key_id, credential_data in original_credentials.items():
-                # Convert dictionary to CredentialFile object if needed
-                if isinstance(credential_data, dict):
-                    credential_file = CredentialFile.from_dict(credential_data)
-                else:
-                    credential_file = credential_data
-                self._file_manager.save_credential_file(key_id, credential_file)
-            
-            logger.warning("Master key rotation rollback completed - credentials restored but master key backup may be incomplete")
-            
+            self._rollback_legacy_credentials_backup(backup)
         else:
-            # Legacy backup format with only master key data
-            original_master_key_data = backup.original_data
-            self._file_manager.save_master_keys([original_master_key_data])
-            
-            # No credential backup available - this is a critical limitation
-            logger.error("Master key rotation rollback incomplete - no credential backup available")
-            logger.error("Credentials may be in an inconsistent state and may require manual recovery")
-            raise KeyRotationError(
-                (
-                    "Master key rotation rollback failed - credential backup not available. "
-                    "Manual recovery may be required."
-                )
+            self._rollback_legacy_master_key_only_backup(backup)
+
+    def _rollback_comprehensive_master_key_backup(
+        self,
+        backup: RotationBackup
+    ) -> None:
+        """Rollback using comprehensive backup format with both master key and credentials.
+
+        Args:
+            backup: Backup containing comprehensive master key and credential data
+        """
+        original_master_key_data = backup.original_data["master_key"]
+        original_credentials = backup.original_data["credentials"]
+        
+        # Restore original master key
+        self._file_manager.save_master_keys([original_master_key_data])
+        
+        # Restore original credentials
+        self._restore_credential_files(original_credentials)
+        
+        logger.info("Master key rotation rollback completed - original master key and credentials restored")
+
+    def _rollback_legacy_credentials_backup(
+        self,
+        backup: RotationBackup
+    ) -> None:
+        """Rollback using legacy backup format with only credentials.
+
+        Args:
+            backup: Backup containing only credential data
+        """
+        original_credentials = backup.original_data["credentials"]
+        
+        # Restore original credentials
+        self._restore_credential_files(original_credentials)
+        
+        logger.warning("Master key rotation rollback completed - credentials restored but master key backup may be incomplete")
+
+    def _rollback_legacy_master_key_only_backup(
+        self,
+        backup: RotationBackup
+    ) -> None:
+        """Rollback using legacy backup format with only master key data.
+
+        Args:
+            backup: Backup containing only master key data
+
+        Raises:
+            KeyRotationError: If credential backup is not available
+        """
+        original_master_key_data = backup.original_data
+        self._file_manager.save_master_keys([original_master_key_data])
+        
+        # No credential backup available - this is a critical limitation
+        logger.error("Master key rotation rollback incomplete - no credential backup available")
+        logger.error("Credentials may be in an inconsistent state and may require manual recovery")
+        raise KeyRotationError(
+            (
+                "Master key rotation rollback failed - credential backup not available. "
+                "Manual recovery may be required."
             )
+        )
+
+    def _restore_credential_files(
+        self,
+        credential_data: dict[str, Any]
+    ) -> None:
+        """Restore credential files from backup data.
+
+        Args:
+            credential_data: Dictionary mapping key_id to credential data
+        """
+        for key_id, credential_data_item in credential_data.items():
+            # Convert dictionary to CredentialFile object if needed
+            if isinstance(credential_data_item, dict):
+                credential_file = CredentialFile.from_dict(credential_data_item)
+            else:
+                credential_file = credential_data_item
+            self._file_manager.save_credential_file(key_id, credential_file)
 
     def _rollback_bulk_rotation(
         self,
@@ -1016,12 +1042,5 @@ class KeyRotationManager:
             KeyRotationError: If the restoration process fails completely
             FileOperationError: If individual credential files cannot be saved
         """
-        # Restore original credential files
-        original_credentials = backup.original_data
-        for key_id, credential_data in original_credentials.items():
-            # Convert dictionary to CredentialFile object if needed
-            if isinstance(credential_data, dict):
-                credential_file = CredentialFile.from_dict(credential_data)
-            else:
-                credential_file = credential_data
-            self._file_manager.save_credential_file(key_id, credential_file)
+        # Restore original credential files using shared method
+        self._restore_credential_files(backup.original_data)

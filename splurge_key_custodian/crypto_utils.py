@@ -115,7 +115,7 @@ class CryptoUtils:
         password: str, 
         salt: bytes,
         *, 
-        iterations: Optional[int] = None
+        iterations: int | None = None
     ) -> bytes:
         """Derive a key from a password using PBKDF2.
 
@@ -162,7 +162,7 @@ class CryptoUtils:
         master_key: bytes, 
         salt: bytes, 
         *, 
-        iterations: Optional[int] = None
+        iterations: int | None = None
     ) -> bytes:
         """Derive a key from a master key using PBKDF2.
 

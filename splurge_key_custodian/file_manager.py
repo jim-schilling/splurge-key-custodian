@@ -102,7 +102,7 @@ class FileManager:
                 temp_file.unlink()
             raise FileOperationError(f"Failed to write file {file_path}: {e}") from e
 
-    def _read_json(self, file_path: Path) -> Optional[dict[str, Any]]:
+    def _read_json(self, file_path: Path) -> dict[str, Any] | None:
         """Read JSON data from file.
 
         Args:
@@ -138,7 +138,7 @@ class FileManager:
         }
         self._write_json_atomic(self._master_file, data)
 
-    def read_master_keys(self) -> Optional[dict[str, Any]]:
+    def read_master_keys(self) -> dict[str, Any] | None:
         """Read master keys from file.
 
         Returns:

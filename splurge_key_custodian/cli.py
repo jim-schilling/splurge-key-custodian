@@ -352,15 +352,17 @@ Examples:
         self._validate_required_args_with_dependencies(
             command=args.command,
             password=args.password,
-            env_password=args.env_password
+            env_password=args.env_password,
+            data_dir=args.data_dir
         )
 
     def _validate_required_args_with_dependencies(
         self,
         *,
         command: str,
-        password: Optional[str],
-        env_password: Optional[str]
+        password: str | None,
+        env_password: str | None,
+        data_dir: str | None
     ) -> None:
         """Validate that required arguments are provided with explicit dependencies.
 
@@ -368,6 +370,7 @@ Examples:
             command: Command being executed
             password: Password argument
             env_password: Environment password argument
+            data_dir: Data directory argument
 
         Raises:
             ValidationError: If required arguments are missing or invalid
@@ -379,6 +382,10 @@ Examples:
 
         if command == "data-dir":
             return  # Base58 doesn't need password or data dir
+
+        # Validate data directory for commands that require it
+        if not data_dir:
+            raise ValidationError("Data directory (-d/--data-dir) is required")
 
         if not password and not env_password:
             raise ValidationError(
@@ -403,10 +410,10 @@ Examples:
     def _get_custodian_with_dependencies(
         self,
         *,
-        env_password: Optional[str],
-        password: Optional[str],
+        env_password: str | None,
+        password: str | None,
         data_dir: str,
-        iterations: Optional[int] = None
+        iterations: int | None = None
     ) -> KeyCustodian:
         """Get KeyCustodian instance based on arguments with explicit dependencies.
 
@@ -475,7 +482,7 @@ Examples:
         """Print a JSON payload to stdout."""
         print(json.dumps(payload, indent=2 if self._pretty else None))
 
-    def _print_error(self, *, message: str, code: str = "error", extra: Optional[dict[str, Any]] = None) -> None:
+    def _print_error(self, *, message: str, code: str = "error", extra: dict[str, Any] | None = None) -> None:
         """Print a JSON error to stderr and exit non-zero."""
         error_obj = {
             "success": False,
@@ -504,11 +511,11 @@ Examples:
         *,
         name: str,
         credentials: str,
-        meta_data: Optional[str],
-        env_password: Optional[str],
-        password: Optional[str],
+        meta_data: str | None,
+        env_password: str | None,
+        password: str | None,
         data_dir: str,
-        iterations: Optional[int] = None
+        iterations: int | None = None
     ) -> None:
         """Handle save command with explicit dependencies.
 
@@ -569,10 +576,10 @@ Examples:
         self,
         *,
         name: str,
-        env_password: Optional[str],
-        password: Optional[str],
+        env_password: str | None,
+        password: str | None,
         data_dir: str,
-        iterations: Optional[int] = None
+        iterations: int | None = None
     ) -> None:
         """Handle read command with explicit dependencies.
 
@@ -624,10 +631,10 @@ Examples:
     def _handle_list_with_dependencies(
         self,
         *,
-        env_password: Optional[str],
-        password: Optional[str],
+        env_password: str | None,
+        password: str | None,
         data_dir: str,
-        iterations: Optional[int] = None
+        iterations: int | None = None
     ) -> None:
         """Handle list command with explicit dependencies.
 
@@ -671,10 +678,10 @@ Examples:
     def _handle_master_with_dependencies(
         self,
         *,
-        env_password: Optional[str],
-        password: Optional[str],
+        env_password: str | None,
+        password: str | None,
         data_dir: str,
-        iterations: Optional[int] = None
+        iterations: int | None = None
     ) -> None:
         """Handle master command with explicit dependencies.
 
@@ -715,9 +722,9 @@ Examples:
     def _handle_base58_with_dependencies(
         self,
         *,
-        encode: Optional[str],
-        decode: Optional[str],
-        generate: Optional[int]
+        encode: str | None,
+        decode: str | None,
+        generate: int | None
     ) -> None:
         """Handle base58 command with explicit dependencies.
 
@@ -788,13 +795,13 @@ Examples:
     def _handle_rotate_master_with_dependencies(
         self,
         *,
-        new_iterations: Optional[int],
+        new_iterations: int | None,
         create_backup: bool,
-        backup_retention_days: Optional[int],
-        env_password: Optional[str],
-        password: Optional[str],
+        backup_retention_days: int | None,
+        env_password: str | None,
+        password: str | None,
         data_dir: str,
-        iterations: Optional[int] = None
+        iterations: int | None = None
     ) -> None:
         """Handle rotate-master command with explicit dependencies.
 
@@ -850,13 +857,13 @@ Examples:
         self,
         *,
         new_password: str,
-        new_iterations: Optional[int],
+        new_iterations: int | None,
         create_backup: bool,
-        backup_retention_days: Optional[int],
-        env_password: Optional[str],
-        password: Optional[str],
+        backup_retention_days: int | None,
+        env_password: str | None,
+        password: str | None,
         data_dir: str,
-        iterations: Optional[int] = None
+        iterations: int | None = None
     ) -> None:
         """Handle change-password command with explicit dependencies.
 
@@ -915,12 +922,12 @@ Examples:
     def _handle_rotate_credentials_with_dependencies(
         self,
         *,
-        iterations: Optional[int],
+        iterations: int | None,
         create_backup: bool,
-        backup_retention_days: Optional[int],
-        batch_size: Optional[int],
-        env_password: Optional[str],
-        password: Optional[str],
+        backup_retention_days: int | None,
+        batch_size: int | None,
+        env_password: str | None,
+        password: str | None,
         data_dir: str
     ) -> None:
         """Handle rotate-credentials command with explicit dependencies.
@@ -975,10 +982,10 @@ Examples:
         self,
         *,
         rotation_id: str,
-        env_password: Optional[str],
-        password: Optional[str],
+        env_password: str | None,
+        password: str | None,
         data_dir: str,
-        iterations: Optional[int] = None
+        iterations: int | None = None
     ) -> None:
         """Handle rollback command with explicit dependencies.
 
@@ -1024,11 +1031,11 @@ Examples:
     def _handle_history_with_dependencies(
         self,
         *,
-        limit: Optional[int],
-        env_password: Optional[str],
-        password: Optional[str],
+        limit: int | None,
+        env_password: str | None,
+        password: str | None,
         data_dir: str,
-        iterations: Optional[int] = None
+        iterations: int | None = None
     ) -> None:
         """Handle history command with explicit dependencies.
 
@@ -1087,10 +1094,10 @@ Examples:
     def _handle_cleanup_backups_with_dependencies(
         self,
         *,
-        env_password: Optional[str],
-        password: Optional[str],
+        env_password: str | None,
+        password: str | None,
         data_dir: str,
-        iterations: Optional[int] = None
+        iterations: int | None = None
     ) -> None:
         """Handle cleanup-backups command with explicit dependencies.
 
