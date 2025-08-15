@@ -351,7 +351,6 @@ Examples:
         """Validate that required arguments are provided."""
         self._validate_required_args_with_dependencies(
             command=args.command,
-            data_dir=args.data_dir,
             password=args.password,
             env_password=args.env_password
         )
@@ -360,7 +359,6 @@ Examples:
         self,
         *,
         command: str,
-        data_dir: Optional[str],
         password: Optional[str],
         env_password: Optional[str]
     ) -> None:
@@ -368,7 +366,6 @@ Examples:
 
         Args:
             command: Command being executed
-            data_dir: Data directory argument
             password: Password argument
             env_password: Environment password argument
 

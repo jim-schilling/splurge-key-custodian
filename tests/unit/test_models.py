@@ -248,12 +248,14 @@ class TestMasterKey(unittest.TestCase):
         master_key = MasterKey(
             key_id="master-key-123",
             credentials="encrypted-credentials",
-            salt="master-salt"
+            salt="master-salt",
+            iterations=100000
         )
         
         self.assertEqual(master_key.key_id, "master-key-123")
         self.assertEqual(master_key.credentials, "encrypted-credentials")
         self.assertEqual(master_key.salt, "master-salt")
+        self.assertEqual(master_key.iterations, 100000)
         self.assertIsInstance(master_key.created_at, datetime)
 
     def test_master_key_with_datetime(self):
@@ -263,6 +265,7 @@ class TestMasterKey(unittest.TestCase):
             key_id="master-key-456",
             credentials="encrypted-credentials",
             salt="master-salt",
+            iterations=200000,
             created_at=created_at
         )
         
@@ -274,6 +277,7 @@ class TestMasterKey(unittest.TestCase):
             key_id="master-key",
             credentials="encrypted-credentials",
             salt="master-salt",
+            iterations=150000,
             created_at="2023-01-01T12:00:00+00:00"
         )
         
@@ -284,15 +288,15 @@ class TestMasterKey(unittest.TestCase):
         """Test MasterKey validation."""
         # Test empty key_id
         with self.assertRaises(ValueError):
-            MasterKey(key_id="", credentials="creds", salt="salt")
+            MasterKey(key_id="", credentials="creds", salt="salt", iterations=100000)
         
         # Test empty credentials
         with self.assertRaises(ValueError):
-            MasterKey(key_id="test", credentials="", salt="salt")
+            MasterKey(key_id="test", credentials="", salt="salt", iterations=100000)
         
         # Test empty salt
         with self.assertRaises(ValueError):
-            MasterKey(key_id="test", credentials="creds", salt="")
+            MasterKey(key_id="test", credentials="creds", salt="", iterations=100000)
 
     def test_master_key_to_dict(self):
         """Test MasterKey to_dict method."""
@@ -301,6 +305,7 @@ class TestMasterKey(unittest.TestCase):
             key_id="master-key",
             credentials="encrypted-credentials",
             salt="master-salt",
+            iterations=300000,
             created_at=created_at
         )
         
@@ -309,7 +314,45 @@ class TestMasterKey(unittest.TestCase):
         self.assertEqual(result["key_id"], "master-key")
         self.assertEqual(result["credentials"], "encrypted-credentials")
         self.assertEqual(result["salt"], "master-salt")
+        self.assertEqual(result["iterations"], 300000)
         self.assertEqual(result["created_at"], created_at.isoformat())
+
+    def test_master_key_from_dict(self):
+        """Test MasterKey from_dict method."""
+        # Test with all fields including iterations
+        data = {
+            "key_id": "test-key",
+            "credentials": "encrypted-creds",
+            "salt": "test-salt",
+            "iterations": 500000,
+            "created_at": "2023-01-01T12:00:00+00:00"
+        }
+        
+        master_key = MasterKey.from_dict(data)
+        
+        self.assertEqual(master_key.key_id, "test-key")
+        self.assertEqual(master_key.credentials, "encrypted-creds")
+        self.assertEqual(master_key.salt, "test-salt")
+        self.assertEqual(master_key.iterations, 500000)
+        self.assertIsInstance(master_key.created_at, datetime)
+
+    def test_master_key_from_dict_backward_compatibility(self):
+        """Test MasterKey from_dict method with backward compatibility (no iterations field)."""
+        # Test with data missing iterations field (backward compatibility)
+        data = {
+            "key_id": "test-key",
+            "credentials": "encrypted-creds",
+            "salt": "test-salt",
+            "created_at": "2023-01-01T12:00:00+00:00"
+        }
+        
+        master_key = MasterKey.from_dict(data)
+        
+        self.assertEqual(master_key.key_id, "test-key")
+        self.assertEqual(master_key.credentials, "encrypted-creds")
+        self.assertEqual(master_key.salt, "test-salt")
+        self.assertIsNone(master_key.iterations)  # Should be None for backward compatibility
+        self.assertIsInstance(master_key.created_at, datetime)
 
 
 class TestCredentialFile(unittest.TestCase):

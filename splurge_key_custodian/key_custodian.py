@@ -240,11 +240,15 @@ class KeyCustodian:
                 
                 # Validate the password by attempting to decrypt the placeholder credential
                 try:
+                    # Use iterations from master key data if available, otherwise use default
+                    # This ensures backward compatibility with existing master keys
+                    iterations = master_key.iterations or self._iterations or Constants.DEFAULT_ITERATIONS()
+                    
                     # Derive the master key from the password
                     derived_master_key = CryptoUtils.derive_key_from_password(
                         master_password, 
                         Base58.decode(master_key.salt),
-                        iterations=self._iterations
+                        iterations=iterations
                     )
                     
                     # Try to decrypt the placeholder credential to validate the password
@@ -582,11 +586,15 @@ class KeyCustodian:
         # Generate encryption key for this credential
         credential_key = CryptoUtils.generate_random_key()
 
+        # Use iterations from master key data if available, otherwise use default
+        # This ensures backward compatibility with existing master keys
+        iterations = self._current_master_key.iterations or self._iterations or Constants.DEFAULT_ITERATIONS()
+        
         # Derive the master key from the password
         derived_master_key = CryptoUtils.derive_key_from_password(
             self._master_password, 
             Base58.decode(self._current_master_key.salt),
-            iterations=self._iterations
+            iterations=iterations
         )
 
         # Encrypt the credential key with the master key
@@ -675,11 +683,15 @@ class KeyCustodian:
             combined_data_json = Base58.decode(credential_file.data).decode("utf-8")
             combined_data = json.loads(combined_data_json)
 
+            # Use iterations from master key data if available, otherwise use default
+            # This ensures backward compatibility with existing master keys
+            iterations = self._current_master_key.iterations or self._iterations or Constants.DEFAULT_ITERATIONS()
+            
             # Derive the master key from the password
             derived_master_key = CryptoUtils.derive_key_from_password(
                 self._master_password, 
                 Base58.decode(self._current_master_key.salt),
-                iterations=self._iterations
+                iterations=iterations
             )
 
             # Decrypt the credential key using the master key
@@ -780,11 +792,15 @@ class KeyCustodian:
         # Re-encrypt and save
         credential_key = CryptoUtils.generate_random_key()
         
+        # Use iterations from master key data if available, otherwise use default
+        # This ensures backward compatibility with existing master keys
+        iterations = self._current_master_key.iterations or self._iterations or Constants.DEFAULT_ITERATIONS()
+        
         # Derive the master key from the password
         derived_master_key = CryptoUtils.derive_key_from_password(
             self._master_password, 
             Base58.decode(self._current_master_key.salt),
-            iterations=self._iterations
+            iterations=iterations
         )
         
         encrypted_key, salt = CryptoUtils.encrypt_key_with_master(

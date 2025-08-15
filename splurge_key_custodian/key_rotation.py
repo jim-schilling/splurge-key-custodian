@@ -19,6 +19,7 @@ from splurge_key_custodian.exceptions import (
 from splurge_key_custodian.file_manager import FileManager
 from splurge_key_custodian.models import (
     CredentialFile,
+    CredentialsIndex,
     MasterKey,
     RotationBackup,
     RotationHistory,
@@ -66,7 +67,7 @@ class RotationTransaction:
         """
         credential_data = self._file_manager.read_credential_file(key_id)
         if credential_data:
-            file_path = self._file_manager._data_dir / f"{key_id}.credential.json"
+            file_path = self._file_manager.data_directory / f"{key_id}.credential.json"
             self.backup_file(file_path, credential_data)
             
     def backup_all_credentials(self) -> None:
@@ -102,7 +103,6 @@ class RotationTransaction:
                 elif file_path.name == 'key-custodian-master.json':
                     self._file_manager.save_master_keys(data.get('master_keys', []))
                 elif file_path.name == 'key-custodian-index.json':
-                    from splurge_key_custodian.models import CredentialsIndex
                     index = CredentialsIndex.from_dict(data)
                     self._file_manager.save_credentials_index(index)
                     
@@ -507,9 +507,9 @@ class KeyRotationManager:
 
         try:
             if backup.backup_type == "master":
-                self._rollback_master_key_rotation(backup, master_password)
+                self._rollback_master_key_rotation(backup)
             elif backup.backup_type == "bulk":
-                self._rollback_bulk_rotation(backup, master_password)
+                self._rollback_bulk_rotation(backup)
             else:
                 raise KeyRotationError(f"Unknown backup type: {backup.backup_type}")
 
@@ -930,14 +930,12 @@ class KeyRotationManager:
 
     def _rollback_master_key_rotation(
         self,
-        backup: RotationBackup,
-        master_password: str
+        backup: RotationBackup
     ) -> None:
         """Rollback a master key rotation.
 
         Args:
             backup: Backup containing the original state
-            master_password: Master password for decryption
         """
         # Check backup structure and restore accordingly
         if isinstance(backup.original_data, dict) and "master_key" in backup.original_data:
@@ -991,14 +989,32 @@ class KeyRotationManager:
 
     def _rollback_bulk_rotation(
         self,
-        backup: RotationBackup,
-        master_password: str
+        backup: RotationBackup
     ) -> None:
         """Rollback a bulk credential rotation.
 
+        This method restores all credentials to their original state before a bulk
+        rotation operation. It processes each credential in the backup and converts
+        dictionary data back to CredentialFile objects before saving them to disk.
+
+        The restoration process:
+        1. Iterates through all credentials in the backup
+        2. Converts dictionary data to CredentialFile objects if needed
+        3. Saves each credential file to its original location
+        4. Overwrites any existing credential files with the backed-up versions
+
+        Potential failure scenarios:
+        - Backup data corruption: If the backup contains invalid credential data
+        - File system errors: If the file manager cannot write to disk
+        - Memory errors: If credential data is too large to process
+        - Partial restoration: If some credentials restore successfully but others fail
+
         Args:
             backup: Backup containing the original credential states
-            master_password: Master password for decryption
+
+        Raises:
+            KeyRotationError: If the restoration process fails completely
+            FileOperationError: If individual credential files cannot be saved
         """
         # Restore original credential files
         original_credentials = backup.original_data

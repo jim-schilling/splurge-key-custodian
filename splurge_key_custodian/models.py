@@ -438,11 +438,22 @@ class MasterKey:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "MasterKey":
-        """Create MasterKey from dictionary."""
+        """Create MasterKey from dictionary.
+        
+        Args:
+            data: Dictionary containing master key data
+            
+        Returns:
+            MasterKey instance
+            
+        Note:
+            For backward compatibility, if 'iterations' is not present in the data,
+            it defaults to None, which will use the system default when needed.
+        """
         return cls(
             key_id=data["key_id"],
             credentials=data["credentials"],
             salt=data["salt"],
-            iterations=data.get("iterations"),
+            iterations=data.get("iterations"),  # None if not present (backward compatible)
             created_at=data.get("created_at"),
         )

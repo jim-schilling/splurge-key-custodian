@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Example demonstrating the iterations parameter in KeyCustodian."""
 
+import os
 import tempfile
 import shutil
 from splurge_key_custodian.key_custodian import KeyCustodian
 from splurge_key_custodian.constants import Constants
+from splurge_key_custodian.base58 import Base58
 
 def main():
     """Demonstrate iterations parameter usage."""
@@ -70,8 +72,6 @@ def main():
         print(f"   - Retrieved credential: {credential}")
         
         print("\n5. Testing init_from_environment with iterations...")
-        import os
-        from splurge_key_custodian.base58 import Base58
         
         # Set up environment variable
         env_var = "TEST_MASTER_PASSWORD"

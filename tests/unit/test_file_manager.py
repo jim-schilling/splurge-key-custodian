@@ -335,7 +335,7 @@ class TestFileManager(unittest.TestCase):
     def test_backup_files(self):
         """Test backing up files."""
         # Create some files to backup
-        master_keys = [{"key_id": "key1", "salt": "salt1", "created_at": "2023-01-01T00:00:00Z"}]
+        master_keys = [{"key_id": "key1", "salt": "salt1", "iterations": 100000, "created_at": "2023-01-01T00:00:00Z"}]
         self.file_manager.save_master_keys(master_keys)
         
         index = CredentialsIndex()
@@ -481,7 +481,7 @@ class TestFileManager(unittest.TestCase):
 
     def test_save_master_keys_error(self):
         """Test saving master keys with error."""
-        master_keys = [{"key_id": "key1"}]
+        master_keys = [{"key_id": "key1", "salt": "salt1", "iterations": 100000, "created_at": "2023-01-01T00:00:00Z"}]
         
         # Mock _write_json_atomic to raise an exception
         with patch.object(self.file_manager, '_write_json_atomic', side_effect=FileOperationError("Write failed")):
@@ -528,7 +528,7 @@ class TestFileManager(unittest.TestCase):
     def test_backup_files_error(self):
         """Test backing up files with error."""
         # Create a file to backup
-        master_keys = [{"key_id": "key1"}]
+        master_keys = [{"key_id": "key1", "salt": "salt1", "iterations": 100000, "created_at": "2023-01-01T00:00:00Z"}]
         self.file_manager.save_master_keys(master_keys)
         
         backup_dir = os.path.join(self.temp_dir, "backup")

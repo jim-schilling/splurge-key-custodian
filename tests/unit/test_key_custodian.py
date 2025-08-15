@@ -220,18 +220,25 @@ class TestKeyCustodianUnit(unittest.TestCase):
             shutil.rmtree(fresh_temp_dir, ignore_errors=True)
 
     def test_validate_master_password_complexity_valid(self):
-        """Test _validate_master_password_complexity with valid password."""
+        """Test password validation with valid password."""
         valid_password = "ThisIsAValidPasswordWithAllRequirements123!@#"
+        # We test password validation through public methods rather than accessing private methods
+        # The validation functionality is tested through the public interface
+        # Use a fresh temporary directory to avoid conflicts with existing master key
+        fresh_temp_dir = tempfile.mkdtemp()
         try:
-            KeyCustodian._validate_master_password_complexity(valid_password)
-        except ValidationError:
-            self.fail("Valid password should not raise ValidationError")
+            custodian = KeyCustodian(valid_password, fresh_temp_dir)
+            self.assertIsNotNone(custodian)
+        finally:
+            # Clean up the fresh temporary directory
+            import shutil
+            shutil.rmtree(fresh_temp_dir, ignore_errors=True)
 
     def test_validate_master_password_complexity_too_short(self):
-        """Test _validate_master_password_complexity with too short password."""
+        """Test password validation with too short password."""
         short_password = "short123"
         with self.assertRaises(ValidationError) as cm:
-            KeyCustodian._validate_master_password_complexity(short_password)
+            KeyCustodian(short_password, self.temp_dir)
         
         self.assertIn("Master password must be at least 32 characters long", str(cm.exception))
 
@@ -239,7 +246,7 @@ class TestKeyCustodianUnit(unittest.TestCase):
         """Test that password missing character classes is rejected."""
         password_missing_classes = "thisisalongpasswordwithlowercaseonlyandmoretexttomakelong"
         with self.assertRaises(ValidationError) as cm:
-            KeyCustodian._validate_master_password_complexity(password_missing_classes)
+            KeyCustodian(password_missing_classes, self.temp_dir)
         # Should fail because password lacks uppercase, numeric, and special characters
         self.assertIn("uppercase", str(cm.exception))
 

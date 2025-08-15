@@ -239,8 +239,21 @@ class TestFileManagerRotation:
             import shutil
             shutil.rmtree(backups_dir)
         
-        # Ensure data directory
-        file_manager._ensure_data_directory()
+        # Ensure data directory by calling a public method that creates it
+        # We test the behavior through public methods rather than accessing private methods
+        from splurge_key_custodian.models import RotationBackup
+        from datetime import datetime, timezone, timedelta
+        
+        # Create a dummy backup to trigger creation of backups directory
+        dummy_backup = RotationBackup(
+            backup_id="test",
+            rotation_id="test",
+            backup_type="master",
+            original_data={"test": "data"},
+            created_at=datetime.now(timezone.utc),
+            expires_at=datetime.now(timezone.utc) + timedelta(days=30)
+        )
+        file_manager.save_rotation_backup(dummy_backup)  # This will create the backups directory
         
         # Verify backups directory was created
         assert backups_dir.exists()

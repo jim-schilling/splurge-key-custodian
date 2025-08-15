@@ -9,7 +9,7 @@ import tempfile
 import shutil
 from io import StringIO
 
-from splurge_key_custodian.cli import KeyCustodianCLI
+from splurge_key_custodian.cli import KeyCustodianCLI, main
 from splurge_key_custodian.exceptions import (
     ValidationError,
     KeyNotFoundError,
@@ -17,6 +17,7 @@ from splurge_key_custodian.exceptions import (
 )
 from splurge_key_custodian.base58 import Base58
 from splurge_key_custodian.constants import Constants
+from splurge_key_custodian.crypto_utils import CryptoUtils
 
 
 class TestKeyCustodianCLIUnit(unittest.TestCase):
@@ -221,7 +222,6 @@ class TestKeyCustodianCLIUnit(unittest.TestCase):
         encoded_data = output.strip()
         
         # Verify it's valid Base58 by trying to decode it
-        from splurge_key_custodian.base58 import Base58
         try:
             decoded = Base58.decode(encoded_data)
             decoded_text = decoded.decode("utf-8")
@@ -258,7 +258,6 @@ class TestKeyCustodianCLIUnit(unittest.TestCase):
         self.assertEqual(len(output.strip()), Constants.MIN_PASSWORD_LENGTH())
         
         # Verify it contains the expected character sets
-        from splurge_key_custodian.crypto_utils import CryptoUtils
         generated_string = output.strip()
         
         # Check that the generated string contains characters from all expected sets
@@ -395,7 +394,6 @@ class TestKeyCustodianCLIUnit(unittest.TestCase):
         """Test main function."""
         with patch('sys.argv', ['cli.py', '-p', self.master_password, '-d', self.temp_dir, 'list']):
             with patch('sys.stdout', new=StringIO()) as mock_stdout:
-                from splurge_key_custodian.cli import main
                 main()
                 
                 payload = json.loads(mock_stdout.getvalue())
