@@ -18,6 +18,7 @@ from splurge_key_custodian.exceptions import (
 )
 from splurge_key_custodian.file_manager import FileManager
 from splurge_key_custodian.models import (
+    CredentialFile,
     MasterKey,
     RotationBackup,
     RotationHistory,
@@ -579,7 +580,7 @@ class KeyRotationManager:
         old_master_key_data: dict[str, Any],
         backup_retention_days: Optional[int] = None
     ) -> None:
-        """Create a backup of the current master key state.
+        """Create a backup of the current master key state and all credentials.
 
         Args:
             rotation_id: ID of the rotation operation
@@ -589,11 +590,25 @@ class KeyRotationManager:
         retention_days = backup_retention_days or Constants.BACKUP_RETENTION_DAYS()
         expires_at = datetime.now(timezone.utc) + timedelta(days=retention_days)
 
+        # Backup all credential files as well for complete rollback capability
+        credential_files = self._file_manager.list_credential_files()
+        backup_credential_data = {}
+        for key_id in credential_files:
+            credential_data = self._file_manager.read_credential_file(key_id)
+            if credential_data:
+                backup_credential_data[key_id] = credential_data.to_dict()
+
+        # Create comprehensive backup with both master key and credentials
+        backup_data = {
+            "master_key": old_master_key_data,
+            "credentials": backup_credential_data
+        }
+
         backup = RotationBackup(
             backup_id=str(uuid.uuid4()),
             rotation_id=rotation_id,
             backup_type="master",
-            original_data=old_master_key_data,
+            original_data=backup_data,
             created_at=datetime.now(timezone.utc),
             expires_at=expires_at
         )
@@ -924,14 +939,53 @@ class KeyRotationManager:
             backup: Backup containing the original state
             master_password: Master password for decryption
         """
-        # Restore original master key
-        original_master_key_data = backup.original_data
-        self._file_manager.save_master_keys([original_master_key_data])
-
-        # Re-encrypt all credentials with the original master key
-        # This is a simplified rollback - in a real implementation,
-        # you might want to store the original credential states as well
-        logger.warning("Master key rotation rollback may require manual credential re-encryption")
+        # Check backup structure and restore accordingly
+        if isinstance(backup.original_data, dict) and "master_key" in backup.original_data:
+            # New comprehensive backup format with both master key and credentials
+            original_master_key_data = backup.original_data["master_key"]
+            original_credentials = backup.original_data["credentials"]
+            
+            # Restore original master key
+            self._file_manager.save_master_keys([original_master_key_data])
+            
+            # Restore original credentials
+            for key_id, credential_data in original_credentials.items():
+                # Convert dictionary to CredentialFile object if needed
+                if isinstance(credential_data, dict):
+                    credential_file = CredentialFile.from_dict(credential_data)
+                else:
+                    credential_file = credential_data
+                self._file_manager.save_credential_file(key_id, credential_file)
+            
+            logger.info("Master key rotation rollback completed - original master key and credentials restored")
+            
+        elif isinstance(backup.original_data, dict) and "credentials" in backup.original_data:
+            # Legacy backup format with only credentials
+            original_credentials = backup.original_data["credentials"]
+            
+            # Restore original credentials
+            for key_id, credential_data in original_credentials.items():
+                # Convert dictionary to CredentialFile object if needed
+                if isinstance(credential_data, dict):
+                    credential_file = CredentialFile.from_dict(credential_data)
+                else:
+                    credential_file = credential_data
+                self._file_manager.save_credential_file(key_id, credential_file)
+            
+            logger.warning("Master key rotation rollback completed - credentials restored but master key backup may be incomplete")
+            
+        else:
+            # Legacy backup format with only master key data
+            original_master_key_data = backup.original_data
+            self._file_manager.save_master_keys([original_master_key_data])
+            
+            # No credential backup available - this is a critical limitation
+            logger.error("Master key rotation rollback incomplete - no credential backup available")
+            logger.error("Credentials may be in an inconsistent state and may require manual recovery")
+            raise KeyRotationError(
+                "Master key rotation rollback failed - credential backup not available. "
+                "Manual recovery may be required."
+            )
 
     def _rollback_bulk_rotation(
         self,
@@ -947,4 +1001,9 @@ class KeyRotationManager:
         # Restore original credential files
         original_credentials = backup.original_data
         for key_id, credential_data in original_credentials.items():
-            self._file_manager.save_credential_file(key_id, credential_data)
+            # Convert dictionary to CredentialFile object if needed
+            if isinstance(credential_data, dict):
+                credential_file = CredentialFile.from_dict(credential_data)
+            else:
+                credential_file = credential_data
+            self._file_manager.save_credential_file(key_id, credential_file)

@@ -6,7 +6,7 @@ A secure file-based key management system that stores cryptographic keys in JSON
 
 - **Hybrid file-based storage**: Uses separate credential files and a central index for optimal performance and recovery
 - **Atomic operations**: All file operations create temporary files, then atomically replace originals
-- **Secure encryption**: All credentials are encrypted with Fernet (AES-256-CBC with HMAC-SHA256) using a master password with 64-byte salt and configurable iterations (default: 500,000, minimum: 100,000)
+- **Secure encryption**: All credentials are encrypted with Fernet (AES-256-CBC with HMAC-SHA256) using a master password with 64-byte salt and configurable iterations (default: 1,000,000, minimum: 100,000)
 - **Advanced security features**:
   - Constant-time comparison to prevent timing attacks
   - Secure memory zeroing for sensitive data cleanup
@@ -313,7 +313,7 @@ KeyCustodian(master_password: str, data_dir: str, *, iterations: Optional[int] =
 
 - `master_password`: Master password for encrypting/decrypting keys. Policy: at least 32 characters.
 - `data_dir`: Directory to store key files
-- `iterations`: Number of iterations for key derivation (default: 500,000, minimum: 100,000)
+- `iterations`: Number of iterations for key derivation (default: 1,000,000, minimum: 100,000)
 
 **Password Requirements:**
 - **Length**: From 32 to 512 characters long
