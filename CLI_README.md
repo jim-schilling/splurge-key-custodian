@@ -14,6 +14,16 @@ mkdir -p ~/key-custodian-data
 export MASTER_PASSWORD="MySecureMasterPassword123!@#ExtraLongEnough"
 ```
 
+### Advanced Features
+
+The CLI includes advanced features that require the `-x` or `--advanced` flag:
+
+```bash
+# Enable advanced features for base58 operations
+python -m splurge_key_custodian -x base58 -e "Hello World"
+python -m splurge_key_custodian --advanced base58 -g 32
+```
+
 ## Complete Workflow Examples
 
 ### Basic CRUD Operations
@@ -106,6 +116,54 @@ python -m splurge_key_custodian -p "my-master-password" -d ~/key-custodian-data 
 # Backup using environment variable
 python -m splurge_key_custodian -e MASTER_PASSWORD -d ~/key-custodian-data backup \
   -o /path/to/backup.zip
+```
+
+### Advanced Operations
+
+#### 1. Base58 Encoding/Decoding
+
+```bash
+# Encode text to Base58
+python -m splurge_key_custodian -x base58 -e "Hello World"
+# Output: JxF12TrwUP45BMd
+
+# Decode Base58 to text
+python -m splurge_key_custodian -x base58 -d "JxF12TrwUP45BMd"
+# Output: Hello World
+
+# Generate cryptographically random Base58-like string (default 32 chars)
+python -m splurge_key_custodian -x base58 -g
+
+# Generate specific length (min: 32, max: 128)
+python -m splurge_key_custodian -x base58 -g 64
+
+# Using --advanced flag (alternative to -x)
+python -m splurge_key_custodian --advanced base58 -g 48
+```
+
+#### 2. Base58 Binary Data Handling
+
+```bash
+# Encode binary data (will be treated as UTF-8)
+python -m splurge_key_custodian -x base58 -e "Binary data with \x00\x01\x02"
+
+# Decode to binary (outputs raw bytes to stdout)
+python -m splurge_key_custodian -x base58 -d "encoded_binary_data" > output.bin
+```
+
+#### 3. Advanced Base58 Examples
+
+```bash
+# Generate multiple random strings for testing
+for i in {1..5}; do
+  python -m splurge_key_custodian -x base58 -g 32
+done
+
+# Encode a complex JSON string
+python -m splurge_key_custodian -x base58 -e '{"key": "value", "number": 123}'
+
+# Decode and pipe to jq for JSON processing
+python -m splurge_key_custodian -x base58 -d "encoded_json_string" | jq .
 ```
 
 ### Complete End-to-End Example
@@ -394,6 +452,10 @@ python -m splurge_key_custodian --help
 python -m splurge_key_custodian rotate-master --help
 python -m splurge_key_custodian change-password --help
 python -m splurge_key_custodian rotate-credentials --help
+
+# View help for advanced commands
+python -m splurge_key_custodian -x base58 --help
+python -m splurge_key_custodian --advanced base58 --help
 ```
 
 ## Security Best Practices
@@ -405,23 +467,25 @@ python -m splurge_key_custodian rotate-credentials --help
 5. **Secure Storage**: Store the data directory in a secure location with appropriate permissions
 6. **Audit Trail**: Regularly review rotation history for security auditing
 7. **Atomic Operations**: All rotation operations are atomic, ensuring data integrity
+8. **Advanced Features**: Use advanced features (`-x`/`--advanced`) only when needed and understand their purpose
 
 ## Command Reference
 
-| Command | Purpose | Key Options |
-|---------|---------|-------------|
-| `create` | Create a new credential | `-n, --name`, `-c, --credentials`, `-m, --meta-data` |
-| `read` | Read/decrypt a credential | `-k, --key-id`, `-n, --name` |
-| `list` | List all credentials | None |
-| `update` | Update a credential | `-k, --key-id`, `-n, --name`, `-c, --credentials`, `-m, --meta-data` |
-| `delete` | Delete a credential | `-k, --key-id` |
-| `backup` | Create backup of all data | `-o, --output` |
-| `rotate-master` | Rotate master key (same password) | `-ni`, `--no-backup`, `-br` |
-| `change-password` | Change master password | `-np`, `-ni`, `--no-backup`, `-br` |
-| `rotate-credentials` | Rotate all credential keys | `-i`, `-bs`, `--no-backup`, `-br` |
-| `history` | View rotation history | `-l` |
-| `rollback` | Rollback rotation | `-r` |
-| `cleanup-backups` | Clean expired backups | None |
+| Command | Purpose | Key Options | Advanced Required |
+|---------|---------|-------------|-------------------|
+| `create` | Create a new credential | `-n, --name`, `-c, --credentials`, `-m, --meta-data` | No |
+| `read` | Read/decrypt a credential | `-k, --key-id`, `-n, --name` | No |
+| `list` | List all credentials | None | No |
+| `update` | Update a credential | `-k, --key-id`, `-n, --name`, `-c, --credentials`, `-m, --meta-data` | No |
+| `delete` | Delete a credential | `-k, --key-id` | No |
+| `backup` | Create backup of all data | `-o, --output` | No |
+| `rotate-master` | Rotate master key (same password) | `-ni`, `--no-backup`, `-br` | No |
+| `change-password` | Change master password | `-np`, `-ni`, `--no-backup`, `-br` | No |
+| `rotate-credentials` | Rotate all credential keys | `-i`, `-bs`, `--no-backup`, `-br` | No |
+| `history` | View rotation history | `-l` | No |
+| `rollback` | Rollback rotation | `-r` | No |
+| `cleanup-backups` | Clean expired backups | None | No |
+| `base58` | Base58 encode/decode operations | `-e, --encode`, `-d, --decode`, `-g, --generate` | **Yes** |
 
 **Option Legend:**
 - `-n, --name`: Credential name
@@ -437,6 +501,10 @@ python -m splurge_key_custodian rotate-credentials --help
 - `-l, --limit`: Limit for history display
 - `-r, --rotation-id`: Rotation ID for rollback
 - `--no-backup`: Skip backup creation (not recommended)
+- `-x, --advanced`: Enable advanced features (required for base58)
+- `-e, --encode`: Text to encode to Base58
+- `-d, --decode`: Base58 string to decode
+- `-g, --generate`: Generate random Base58-like string (length optional, default: 32)
 
 ## Testing the CLI
 
