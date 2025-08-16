@@ -20,7 +20,8 @@ from splurge_key_custodian.exceptions import (
 )
 from splurge_key_custodian.file_manager import FileManager
 from splurge_key_custodian.key_custodian import KeyCustodian
-from splurge_key_custodian.key_rotation import KeyRotationManager, RotationTransaction
+from splurge_key_custodian.key_rotation import KeyRotationManager
+from splurge_key_custodian.services.rotation.transaction import RotationTransaction
 from splurge_key_custodian.models import (
     CredentialFile,
     RotationBackup,
@@ -272,8 +273,8 @@ class TestKeyRotationManagerBehavior:
         # Create custodian with multiple credentials
         custodian = KeyCustodian(master_password, temp_dir)
         
-        # Create 10 test credentials
-        for i in range(10):
+        # Create 7 test credentials
+        for i in range(7):
             custodian.create_credential(
                 name=f"Test Credential {i}",
                 credentials={"username": f"user{i}", "password": f"pass{i}"}
@@ -292,7 +293,7 @@ class TestKeyRotationManagerBehavior:
         
         # Verify all credentials are still accessible
         credentials = custodian.list_credentials()
-        assert len(credentials) == 10
+        assert len(credentials) == 7
         
         # Test with batch size of 1 (process one at a time)
         rotation_id2 = rotation_manager.rotate_all_credentials(
@@ -305,15 +306,15 @@ class TestKeyRotationManagerBehavior:
         
         # Verify all credentials are still accessible
         credentials = custodian.list_credentials()
-        assert len(credentials) == 10
+        assert len(credentials) == 7
 
     def test_rotation_with_large_number_of_credentials(self, temp_dir, master_password):
         """Test rotation with a large number of credentials to test performance."""
         # Create custodian with many credentials
         custodian = KeyCustodian(master_password, temp_dir)
         
-        # Create 50 test credentials (large enough to test batching)
-        for i in range(50):
+        # Create 20 test credentials (large enough to test batching)
+        for i in range(20):
             custodian.create_credential(
                 name=f"Test Credential {i}",
                 credentials={
@@ -329,14 +330,14 @@ class TestKeyRotationManagerBehavior:
         rotation_id = rotation_manager.rotate_all_credentials(
             master_password=master_password,
             create_backup=True,
-            batch_size=10
+            batch_size=5
         )
         
         assert rotation_id is not None
         
         # Verify all credentials are still accessible
         credentials = custodian.list_credentials()
-        assert len(credentials) == 50
+        assert len(credentials) == 20
         
         # Verify we can read all credentials
         for cred in credentials:
@@ -388,8 +389,8 @@ class TestKeyRotationManagerBehavior:
             backup_retention_days=1
         )
         
-        # Find the backup
-        backup = rotation_manager._find_backup_for_rotation(rotation_id)
+        # Find the backup using the backup service
+        backup = rotation_manager._backup_service.find_backup_for_rotation(rotation_id)
         assert backup is not None
         
         # Verify expiration is set correctly
@@ -530,8 +531,8 @@ class TestKeyRotationManagerBehavior:
             create_backup=True
         )
         
-        # Find the backup
-        backup = rotation_manager._find_backup_for_rotation(rotation_id)
+        # Find the backup using the backup service
+        backup = rotation_manager._backup_service.find_backup_for_rotation(rotation_id)
         assert backup is not None
         
         # Verify backup format

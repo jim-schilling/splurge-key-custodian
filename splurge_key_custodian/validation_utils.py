@@ -46,3 +46,32 @@ def validate_master_password_complexity(password: str) -> None:
         raise ValidationError(
             "Master password must contain at least one special character"
         )
+
+
+def validate_credential_name(name: str) -> None:
+    """Validate credential name requirements.
+
+    Enforces basic requirements for credential names.
+
+    Args:
+        name: Credential name to validate
+
+    Raises:
+        ValidationError: If name doesn't meet requirements
+    """
+    if name is None:
+        raise ValidationError("Credential name cannot be None")
+
+    if name == "":
+        raise ValidationError("Credential name cannot be empty")
+
+    if name.strip() == "":
+        raise ValidationError("Credential name cannot contain only whitespace")
+
+    # Check for reasonable length limits
+    if len(name) > 1000:  # Arbitrary reasonable limit
+        raise ValidationError("Credential name is too long (maximum 1000 characters)")
+
+    # Check for null bytes or other problematic characters
+    if '\x00' in name:
+        raise ValidationError("Credential name cannot contain null bytes")

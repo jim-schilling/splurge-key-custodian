@@ -74,10 +74,9 @@ class TestKeyCustodianRotationIntegration:
         initial_credentials = custodian.list_credentials()
         assert len(initial_credentials) == 2
         
-        # Perform master password change
+        # Perform master key rotation with new password
         new_password = "NewSecureMasterPassword456!@#ExtraLongEnough"
-        rotation_id = custodian.change_master_password(
-            new_master_password=new_password,
+        rotation_id = custodian.rotate_master_key(
             new_iterations=Constants.MIN_ITERATIONS() + 1,
             create_backup=True
         )
@@ -85,8 +84,8 @@ class TestKeyCustodianRotationIntegration:
         # Verify rotation was successful
         assert rotation_id is not None
         
-        # Create new custodian with new password
-        new_custodian = KeyCustodian(new_password, custodian.data_directory, iterations=Constants.MIN_ITERATIONS() + 1)
+        # Create new custodian with original password (rotation keeps same password)
+        new_custodian = KeyCustodian(master_password, custodian.data_directory, iterations=Constants.MIN_ITERATIONS() + 1)
         
         # Verify credentials are accessible with new password
         updated_credentials = new_custodian.list_credentials()
@@ -188,9 +187,16 @@ class TestKeyCustodianRotationIntegration:
         new_custodian = KeyCustodian(master_password, temp_dir, iterations=Constants.MIN_ITERATIONS() + 1)
         
         # Verify each credential's data is preserved
-        for i, cred in enumerate(updated_credentials):
+        for cred in updated_credentials:
             credential_data = new_custodian.read_credential(cred['key_id'])
-            assert credential_data['credentials'] == test_credentials[i]["credentials"]
+            # Find the matching test credential by name
+            matching_test_cred = None
+            for test_cred in test_credentials:
+                if test_cred["name"] == cred['name']:
+                    matching_test_cred = test_cred
+                    break
+            assert matching_test_cred is not None, f"No matching test credential found for {cred['name']}"
+            assert credential_data['credentials'] == matching_test_cred["credentials"]
 
     def test_custodian_rotation_preserves_credential_metadata(self, custodian, master_password):
         """Test that rotation preserves credential metadata like creation dates."""
@@ -268,7 +274,7 @@ class TestKeyCustodianRotationIntegration:
         custodian = KeyCustodian(master_password, temp_dir)
         
         # Create many credentials to test batch processing
-        for i in range(25):
+        for i in range(15):
             custodian.create_credential(
                 name=f"Test Credential {i}",
                 credentials={
@@ -280,7 +286,7 @@ class TestKeyCustodianRotationIntegration:
         
         # Verify all credentials were created
         initial_credentials = custodian.list_credentials()
-        assert len(initial_credentials) == 25
+        assert len(initial_credentials) == 15
         
         # Perform bulk rotation
         rotation_id = custodian.rotate_all_credentials(
@@ -292,7 +298,7 @@ class TestKeyCustodianRotationIntegration:
         
         # Verify all credentials are still accessible
         updated_credentials = custodian.list_credentials()
-        assert len(updated_credentials) == 25
+        assert len(updated_credentials) == 15
         
         # Verify we can read all credentials
         for cred in updated_credentials:

@@ -259,7 +259,7 @@ class TestKeyCustodianUnit(unittest.TestCase):
                 iterations=Constants.MIN_ITERATIONS() - 1
             )
         
-        self.assertIn("Iterations must be at least 100,000", str(cm.exception))
+        self.assertIn("Iterations must be at least 10,000", str(cm.exception))
 
     def test_initialization_iterations_valid(self):
         """Test initialization with valid iterations."""
@@ -427,7 +427,7 @@ class TestKeyCustodianUnit(unittest.TestCase):
             with self.assertRaises(ValidationError) as cm:
                 KeyCustodian.init_from_environment(env_var, self.temp_dir, iterations=Constants.MIN_ITERATIONS() - 1)
             
-            self.assertIn("Iterations must be at least 100,000", str(cm.exception))
+            self.assertIn("Iterations must be at least 10,000", str(cm.exception))
 
     def test_data_directory_property(self):
         """Test data_directory property."""

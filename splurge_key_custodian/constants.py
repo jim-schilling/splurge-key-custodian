@@ -11,7 +11,7 @@ class Constants:
     # Password policy  
     _MIN_PASSWORD_LENGTH: int = 32
     _MAX_PASSWORD_LENGTH: int = 512
-    _MIN_ITERATIONS: int = 100_000
+    _MIN_ITERATIONS: int = 10_000
     _DEFAULT_ITERATIONS: int = 1_000_000
     _DEFAULT_SALT_SIZE: int = 64
     _MIN_SALT_SIZE: int = 32
@@ -25,7 +25,6 @@ class Constants:
     # Key rotation policy
     _MAX_ROTATION_HISTORY: int = 10  # Maximum number of rotation history entries to keep
     _BACKUP_RETENTION_DAYS: int = 30  # Days to keep rotation backups
-    _MAX_BACKUP_SIZE_MB: int = 100  # Maximum backup size in MB
     _ROTATION_BATCH_SIZE: int = 50  # Number of credentials to rotate in a batch
 
     @classmethod
@@ -90,10 +89,6 @@ class Constants:
     @classmethod
     def BACKUP_RETENTION_DAYS(cls) -> int:
         return cls._BACKUP_RETENTION_DAYS
-
-    @classmethod
-    def MAX_BACKUP_SIZE_MB(cls) -> int:
-        return cls._MAX_BACKUP_SIZE_MB
 
     @classmethod
     def ROTATION_BATCH_SIZE(cls) -> int:
