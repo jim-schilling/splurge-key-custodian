@@ -1,96 +1,72 @@
 """Key Custodian class for file-based credential management with separate files."""
 
-import json
 import logging
 import os
-import shutil
-import uuid
-from pathlib import Path
-from typing import Any, Optional
-
-# Configure logging
-logger = logging.getLogger(__name__)
+from typing import Any, Dict
 
 from splurge_key_custodian.base58 import Base58
-from splurge_key_custodian.crypto_utils import CryptoUtils
 from splurge_key_custodian.constants import Constants
 from splurge_key_custodian.exceptions import (
     EncryptionError,
+    FileOperationError,
     KeyNotFoundError,
     MasterKeyError,
     ValidationError,
 )
 from splurge_key_custodian.file_manager import FileManager
-from splurge_key_custodian.models import (
-    CredentialData,
-    CredentialFile,
-    CredentialsIndex,
-    MasterKey,
+from splurge_key_custodian.services import (
+    BackupService,
+    MasterKeyService,
+    CredentialService,
+    IndexService,
+    KeyRotationManager,
 )
+from splurge_key_custodian.validation_utils import validate_master_password_complexity
+
+logger = logging.getLogger(__name__)
 
 
 class KeyCustodian:
-    """File-based key custodian for secure credential management."""
+    """File-based key custodian for secure credential management using service layer."""
 
     @classmethod
     def _validate_master_password_complexity(cls, password: str) -> None:
         """Validate master password complexity requirements.
 
-        Enforces minimum length, maximum length, and character class requirements.
+        This method delegates to the shared validation utility function
+        to ensure consistent validation rules across the codebase.
 
         Args:
             password: Master password to validate
 
         Raises:
-            ValidationError: If password length requirement is not met
+            ValidationError: If password doesn't meet complexity requirements
         """
-        if len(password) < Constants.MIN_PASSWORD_LENGTH():
-            raise ValidationError(
-                f"Master password must be at least {Constants.MIN_PASSWORD_LENGTH()} characters long"
-            )
-        if len(password) > Constants.MAX_PASSWORD_LENGTH():
-            raise ValidationError(
-                f"Master password must be less than {Constants.MAX_PASSWORD_LENGTH()} characters long"
-            )
-        if not any(c in CryptoUtils.B58_ALPHA_UPPER() for c in password):
-            raise ValidationError(
-                "Master password must contain at least one uppercase letter"
-            )
-        if not any(c in CryptoUtils.B58_ALPHA_LOWER() for c in password):
-            raise ValidationError(
-                "Master password must contain at least one lowercase letter"
-            )
-        if not any(c in CryptoUtils.B58_DIGIT() for c in password):
-            raise ValidationError(
-                "Master password must contain at least one numeric character"
-            )
-        if not any(c in CryptoUtils.ALLOWABLE_SPECIAL() for c in password):
-            raise ValidationError(
-                "Master password must contain at least one special character"
-            )
+        validate_master_password_complexity(password)
 
     @classmethod
     def init_from_environment(
-        cls, 
+        cls,
         env_variable: str,
         data_dir: str,
         *,
-        iterations: Optional[int] = None
+        iterations: int | None = None
     ) -> "KeyCustodian":
         """Create KeyCustodian instance from environment variable.
 
         Args:
             env_variable: Environment variable name containing Base58-encoded master password
             data_dir: Directory to store key files
-            iterations: Number of iterations for key derivation (default: 1,000,000, minimum: 100,000)
+            iterations: Number of iterations for key derivation (default: 1,000,000, minimum: 10,000)
 
         Returns:
             KeyCustodian instance
 
         Raises:
-            ValidationError: If environment variable name is invalid, environment variable is missing/empty/invalid,
-                           if master password does not meet complexity requirements (at least 32 characters
-                           with uppercase, lowercase, numeric, and symbol characters), or if iterations is less than minimum
+            ValidationError: If environment variable name is invalid, environment variable is
+                           missing/empty/invalid, if master password does not meet complexity requirements
+                           (at least 32 characters with uppercase, lowercase, numeric, and symbol
+                           characters), or if iterations is less than minimum
         """
         # Guard against None env_variable parameter
         if env_variable is None:
@@ -129,11 +105,11 @@ class KeyCustodian:
         return cls(master_password, data_dir, iterations=iterations)
 
     def __init__(
-        self, 
+        self,
         master_password: str,
         data_dir: str,
         *,
-        iterations: Optional[int] = None
+        iterations: int | None = None
     ) -> None:
         """Initialize the Key Custodian.
 
@@ -141,7 +117,7 @@ class KeyCustodian:
             master_password: Master password for encryption/decryption. Must be at least 32 characters
                            and contain uppercase, lowercase, numeric, and symbol characters.
             data_dir: Directory to store key files
-            iterations: Number of iterations for key derivation (default: 1,000,000, minimum: 100,000)
+            iterations: Number of iterations for key derivation (default: 1,000,000, minimum: 10,000)
 
         Raises:
             ValidationError: If data_dir or master_password is empty, if master_password
@@ -183,357 +159,45 @@ class KeyCustodian:
         self._data_dir = data_dir
         self._iterations = iterations
         self._file_manager = FileManager(data_dir)
-        self._credentials_index: Optional[CredentialsIndex] = None
-        self._current_master_key: Optional[MasterKey] = None
-        # Internal-only state; no caches or rate limiting retained
+
+        # Initialize services
+        self._master_key_service = MasterKeyService(self._file_manager)
+        self._credential_service = CredentialService(self._file_manager)
+        self._index_service = IndexService(self._file_manager)
+        self._backup_service = BackupService(self._file_manager)
+        self._rotation_manager = KeyRotationManager(self._file_manager)
 
         # Initialize or load master key
         self._initialize_master_key()
 
     def _initialize_master_key(self) -> None:
         """Initialize or load the master key."""
-        self._initialize_master_key_with_dependencies(
-            master_password=self._master_password,
-            data_dir=self._data_dir,
-            file_manager=self._file_manager
-        )
+        # Check if master key exists
+        existing_master_key = self._master_key_service.load_master_key()
 
-    def _initialize_master_key_with_dependencies(
-        self,
-        *,
-        master_password: str,
-        data_dir: str,
-        file_manager: FileManager
-    ) -> None:
-        """Initialize or load the master key with explicit dependencies.
+        if existing_master_key:
+            # Validate master password against existing key
+            if not self._master_key_service.validate_master_password(
+                self._master_password,
+                self._iterations
+            ):
+                raise MasterKeyError("Invalid master password")
 
-        Args:
-            master_password: Master password for encryption/decryption
-            data_dir: Directory to store key files
-            file_manager: File manager instance
-
-        Raises:
-            MasterKeyError: If master key operations fail
-        """
-        # Guard against missing master password
-        if not master_password:
-            raise MasterKeyError("Master password is not set")
-
-        # Guard against missing data directory
-        if not data_dir:
-            raise MasterKeyError("Data directory is not set")
-
-        # Guard against missing file manager
-        if not file_manager:
-            raise MasterKeyError("File manager is not initialized")
-
-        try:
-            master_keys_data = file_manager.read_master_keys()
-            
-            if master_keys_data and master_keys_data.get("master_keys"):
-                # Load existing master key
-                master_key_data = master_keys_data["master_keys"][0]
-                master_key = MasterKey.from_dict(master_key_data)
-                
-                # Validate the password by attempting to decrypt the placeholder credential
-                try:
-                    # Derive the master key from the password
-                    derived_master_key = CryptoUtils.derive_key_from_password(
-                        master_password, 
-                        Base58.decode(master_key.salt),
-                        iterations=self._iterations
-                    )
-                    
-                    # Try to decrypt the placeholder credential to validate the password
-                    placeholder_credential = Base58.decode(master_key.credentials)
-                    decrypted_placeholder = CryptoUtils.decrypt_with_fernet(
-                        derived_master_key, 
-                        placeholder_credential
-                    )
-                    
-                    # Verify the decrypted data is what we expect (single zero byte)
-                    if not CryptoUtils.constant_time_compare(decrypted_placeholder, b"\x00"):
-                        # Clean up sensitive data before raising exception
-                        CryptoUtils.secure_zero(bytearray(derived_master_key))
-                        CryptoUtils.secure_zero(bytearray(decrypted_placeholder))
-                        raise MasterKeyError("Invalid master key data")
-                    
-                    # If decryption succeeds and data is correct, the password is correct
-                    self._current_master_key = master_key
-                    # Successful validation
-                    # Clean up sensitive data
-                    CryptoUtils.secure_zero(bytearray(derived_master_key))
-                    CryptoUtils.secure_zero(bytearray(decrypted_placeholder))
-                    
-                except Exception as e:
-                    # If decryption fails, the password is wrong
-                    logger.warning("Failed authentication attempt", extra={
-                        "event": "auth_failed",
-                        "reason": "invalid_password",
-                        "attempts": 1
-                    })
-                    raise MasterKeyError(f"Invalid master password: {e}") from e
-            else:
-                # Create new master key
-                key_id = str(uuid.uuid4())
-                salt = CryptoUtils.generate_salt()
-                derived_key = CryptoUtils.derive_key_from_password(
-                    master_password, 
-                    salt,
-                    iterations=self._iterations
-                )
-
-                # Create and encrypt a placeholder credential to validate the password later
-                placeholder_data = b"\x00"  # Single zero byte for new master key
-                encrypted_placeholder = CryptoUtils.encrypt_with_fernet(
-                    derived_key, 
-                    placeholder_data
-                )
-
-                master_key = MasterKey(
-                    key_id=key_id,
-                    credentials=Base58.encode(encrypted_placeholder),
-                    salt=Base58.encode(salt),
-                )
-                self._current_master_key = master_key
-
-                # Save the master key
-                file_manager.save_master_keys([master_key.to_dict()])
-
-            # Load or initialize credentials index
-            self._load_credentials_index_with_dependencies(
-                file_manager=file_manager,
-                data_dir=data_dir
+            logger.info("Master key loaded successfully")
+        else:
+            # Initialize new master key
+            self._master_key_service.initialize_master_key(
+                self._master_password,
+                self._iterations
             )
-
-        except Exception as e:
-            raise MasterKeyError(f"Failed to initialize master key: {e}") from e
-
-    def _load_credentials_index(self) -> None:
-        """Load the credentials index from file."""
-        self._load_credentials_index_with_dependencies(
-            file_manager=self._file_manager,
-            data_dir=self._data_dir
-        )
-
-    def _load_credentials_index_with_dependencies(
-        self,
-        *,
-        file_manager: FileManager,
-        data_dir: str
-    ) -> None:
-        """Load the credentials index from file with explicit dependencies.
-
-        Args:
-            file_manager: File manager instance
-            data_dir: Directory to store key files
-
-        Raises:
-            ValidationError: If file manager or data directory is not set
-        """
-        # Guard against missing file manager
-        if not file_manager:
-            raise ValidationError("File manager is not initialized")
-
-        # Guard against missing data directory
-        if not data_dir:
-            raise ValidationError("Data directory is not set")
-
-        try:
-            self._credentials_index = file_manager.read_credentials_index()
-            if self._credentials_index is None:
-                # Check if there are credential files that need to be indexed
-                credential_files = file_manager.list_credential_files()
-                if credential_files:
-                    # Rebuild index from existing files
-                    self._rebuild_index_from_files_with_dependencies(
-                        file_manager=file_manager,
-                        data_dir=data_dir
-                    )
-                else:
-                    # Create empty index
-                    self._credentials_index = CredentialsIndex()
-                    file_manager.save_credentials_index(self._credentials_index)
-
-        except Exception as e:
-            # If index loading fails, try to rebuild it
-            logging.warning(f"Failed to load credentials index: {e}")
-            self._rebuild_index_from_files_with_dependencies(
-                file_manager=file_manager,
-                data_dir=data_dir
-            )
-
-    def _rebuild_index_from_files(self) -> None:
-        """Rebuild the credentials index by scanning credential files."""
-        self._rebuild_index_from_files_with_dependencies(
-            file_manager=self._file_manager,
-            data_dir=self._data_dir
-        )
-
-    def _rebuild_index_from_files_with_dependencies(
-        self,
-        *,
-        file_manager: FileManager,
-        data_dir: str
-    ) -> None:
-        """Rebuild the credentials index by scanning credential files with explicit dependencies.
-
-        Args:
-            file_manager: File manager instance
-            data_dir: Directory to store key files
-
-        Raises:
-            ValidationError: If file manager or data directory is not set, or if rebuild fails
-        """
-        # Guard against missing file manager
-        if not file_manager:
-            raise ValidationError("File manager is not initialized")
-
-        # Guard against missing data directory
-        if not data_dir:
-            raise ValidationError("Data directory is not set")
-
-        self._credentials_index = CredentialsIndex()
-
-        try:
-            credential_files = file_manager.list_credential_files()
-            for key_id in credential_files:
-                try:
-                    credential_file = file_manager.read_credential_file(key_id)
-                    if credential_file:
-                        self._credentials_index.add_credential(
-                            key_id, 
-                            credential_file.name
-                        )
-                except Exception as e:
-                    # Log the error but continue with other files
-                    logging.warning(f"Could not read credential file {key_id}: {e}")
-
-            # Save the rebuilt index
-            file_manager.save_credentials_index(self._credentials_index)
-
-        except Exception as e:
-            raise ValidationError(f"Failed to rebuild index: {e}") from e
-
-    def _should_rebuild_index(self) -> bool:
-        """Check if the index should be rebuilt."""
-        return self._should_rebuild_index_with_dependencies(
-            file_manager=self._file_manager,
-            data_dir=self._data_dir,
-            credentials_index=self._credentials_index
-        )
-
-    def _should_rebuild_index_with_dependencies(
-        self,
-        *,
-        file_manager: FileManager,
-        data_dir: str,
-        credentials_index: Optional[CredentialsIndex]
-    ) -> bool:
-        """Check if the index should be rebuilt with explicit dependencies.
-
-        Args:
-            file_manager: File manager instance
-            data_dir: Directory to store key files
-            credentials_index: Current credentials index
-
-        Returns:
-            True if index should be rebuilt, False otherwise
-        """
-        # Guard against missing file manager
-        if not file_manager:
-            return False
-
-        # Guard against missing data directory
-        if not data_dir:
-            return False
-
-        master_keys_data = file_manager.read_master_keys()
-        if not master_keys_data or not master_keys_data.get("master_keys"):
-            return False
-
-        # Check if there are credential files that aren't in the index
-        try:
-            credential_files = file_manager.list_credential_files()
-            if not credentials_index:
-                return len(credential_files) > 0
-
-            indexed_credentials = set(credentials_index.credentials.keys())
-            file_credentials = set(credential_files)
-
-            return file_credentials != indexed_credentials
-
-        except Exception:
-            return True
-
-    def _check_name_uniqueness(
-        self, 
-        name: str, 
-        exclude_key_id: Optional[str] = None
-    ) -> None:
-        """Check that a credential name is unique.
-
-        Args:
-            name: Name to check
-            exclude_key_id: Key ID to exclude from uniqueness check (for updates)
-
-        Raises:
-            ValidationError: If name is not unique or invalid
-        """
-        self._check_name_uniqueness_with_dependencies(
-            name=name,
-            exclude_key_id=exclude_key_id,
-            credentials_index=self._credentials_index
-        )
-
-    def _check_name_uniqueness_with_dependencies(
-        self,
-        *,
-        name: str,
-        exclude_key_id: Optional[str],
-        credentials_index: Optional[CredentialsIndex]
-    ) -> None:
-        """Check that a credential name is unique with explicit dependencies.
-
-        Args:
-            name: Name to check
-            exclude_key_id: Key ID to exclude from uniqueness check (for updates)
-            credentials_index: Current credentials index
-
-        Raises:
-            ValidationError: If name is not unique or invalid
-        """
-        # Guard against None name parameter
-        if name is None:
-            raise ValidationError("Credential name cannot be None")
-
-        # Guard against empty name parameter
-        if name == "":
-            raise ValidationError("Credential name cannot be empty")
-
-        # Guard against whitespace-only name parameter
-        if name.strip() == "":
-            raise ValidationError("Credential name cannot contain only whitespace")
-
-        # Ensure credentials index is initialized
-        if credentials_index is None:
-            credentials_index = CredentialsIndex()
-
-        if credentials_index.has_name(name):
-            # If we're updating, check if the name belongs to the same credential
-            if exclude_key_id:
-                existing_key_id = credentials_index.get_key_id(name)
-                if existing_key_id == exclude_key_id:
-                    return  # Same credential, name is fine
-
-            raise ValidationError(f"Credential name '{name}' already exists")
+            logger.info("Master key initialized successfully")
 
     def create_credential(
         self,
         *,
         name: str,
-        credentials: dict[str, Any],
-        meta_data: Optional[dict[str, Any]] = None,
+        credentials: Dict[str, Any],
+        meta_data: Dict[str, Any] | None = None,
     ) -> str:
         """Create a new credential.
 
@@ -549,271 +213,101 @@ class KeyCustodian:
             ValidationError: If name is empty or already exists
             EncryptionError: If encryption fails
         """
-        # Guard against None name parameter
-        if name is None:
-            raise ValidationError("Credential name cannot be None")
-
-        # Guard against empty name parameter
-        if name == "":
-            raise ValidationError("Credential name cannot be empty")
-
-        # Guard against whitespace-only name parameter
-        if name.strip() == "":
-            raise ValidationError("Credential name cannot contain only whitespace")
-
-        # Guard against None credentials parameter
-        if credentials is None:
-            raise ValidationError("Credentials cannot be None")
-
-        # Guard against empty credentials parameter
-        if credentials == {}:
-            raise ValidationError("Credentials cannot be empty")
-
-        # Check name uniqueness
-        self._check_name_uniqueness(name)
-
-        # Generate unique key ID
-        key_id = str(uuid.uuid4())
-
-        # Generate encryption key for this credential
-        credential_key = CryptoUtils.generate_random_key()
-
-        # Derive the master key from the password
-        derived_master_key = CryptoUtils.derive_key_from_password(
-            self._master_password, 
-            Base58.decode(self._current_master_key.salt),
-            iterations=self._iterations
-        )
-
-        # Encrypt the credential key with the master key
-        encrypted_key, salt = CryptoUtils.encrypt_key_with_master(
-            credential_key, 
-            derived_master_key
-        )
-
-        # Create credential data
-        credential_data = CredentialData(
-            credentials=credentials,
-            meta_data=meta_data or {},
-        )
-
-        # Encrypt the credential data
-        encrypted_data = CryptoUtils.encrypt_with_fernet(
-            credential_key, 
-            json.dumps(credential_data.to_dict()).encode("utf-8")
-        )
-
-        # Combine encrypted key and data
-        combined_data = {
-            "encrypted_key": Base58.encode(encrypted_key),
-            "encrypted_data": Base58.encode(encrypted_data),
-        }
-
-        # Create credential file
-        credential_file = CredentialFile(
-            key_id=key_id,
-            name=name,
-            salt=Base58.encode(salt),
-            data=Base58.encode(json.dumps(combined_data).encode("utf-8")),
-        )
-
         try:
-            # Save credential file
-            self._file_manager.save_credential_file(key_id, credential_file)
+            # Create credential using service
+            key_id = self._credential_service.create_credential(
+                name=name,
+                credentials=credentials,
+                master_password=self._master_password,
+                iterations=self._iterations,
+                meta_data=meta_data
+            )
 
-            # Update index
-            if self._credentials_index is None:
-                self._credentials_index = CredentialsIndex()
-
-            self._credentials_index.add_credential(key_id, name)
-            self._file_manager.save_credentials_index(self._credentials_index)
+            # Add to index
+            self._index_service.add_credential_to_index(
+                key_id=key_id,
+                name=name,
+                metadata=meta_data
+            )
 
             return key_id
-
+        except ValidationError:
+            raise
+        except FileOperationError as e:
+            raise EncryptionError(f"Failed to create credential due to file operation error: {e}") from e
         except Exception as e:
-            if isinstance(e, (ValidationError, EncryptionError)):
-                raise
             raise EncryptionError(f"Failed to create credential: {e}") from e
 
-    def read_credential(self, key_id: str) -> dict[str, Any]:
+    def read_credential(self, key_id: str) -> Dict[str, Any]:
         """Read a credential by key ID.
 
         Args:
-            key_id: Key ID of the credential
+            key_id: Key ID of the credential to read
 
         Returns:
-            Credential data as dictionary
+            Dictionary containing credential data
 
         Raises:
-            ValidationError: If key_id is empty
-            KeyNotFoundError: If credential is not found
+            KeyNotFoundError: If credential not found
             EncryptionError: If decryption fails
         """
-        # Guard against None key_id parameter
-        if key_id is None:
-            raise ValidationError("Key ID cannot be None")
-
-        # Guard against empty key_id parameter
-        if key_id == "":
-            raise ValidationError("Key ID cannot be empty")
-
-        # Guard against whitespace-only key_id parameter
-        if key_id.strip() == "":
-            raise ValidationError("Key ID cannot contain only whitespace")
-
         try:
-            # Load credential file
-            credential_file = self._file_manager.read_credential_file(key_id)
-            if not credential_file:
-                raise KeyNotFoundError(f"Credential with key ID '{key_id}' not found")
-
-            # Decode the combined data
-            combined_data_json = Base58.decode(credential_file.data).decode("utf-8")
-            combined_data = json.loads(combined_data_json)
-
-            # Derive the master key from the password
-            derived_master_key = CryptoUtils.derive_key_from_password(
-                self._master_password, 
-                Base58.decode(self._current_master_key.salt),
+            return self._credential_service.read_credential(
+                key_id=key_id,
+                master_password=self._master_password,
                 iterations=self._iterations
             )
-
-            # Decrypt the credential key using the master key
-            credential_key = CryptoUtils.decrypt_key_with_master(
-                Base58.decode(combined_data["encrypted_key"]),
-                derived_master_key,
-                Base58.decode(credential_file.salt),
-            )
-
-            # Decrypt the credential data
-            decrypted_data = CryptoUtils.decrypt_with_fernet(
-                credential_key, 
-                Base58.decode(combined_data["encrypted_data"])
-            )
-
-            # Parse the decrypted data
-            credential_data_dict = json.loads(decrypted_data.decode("utf-8"))
-
-            return credential_data_dict
-
+        except ValidationError:
+            raise
+        except FileOperationError as e:
+            raise KeyNotFoundError(f"Credential with key ID '{key_id}' not found") from e
         except Exception as e:
-            if isinstance(e, (ValidationError, KeyNotFoundError, EncryptionError)):
-                raise
-            raise EncryptionError(f"Failed to read credential: {e}") from e
+            raise KeyNotFoundError(f"Credential {key_id} not found: {e}") from e
 
     def update_credential(
         self,
-        *,
         key_id: str,
-        name: Optional[str] = None,
-        credentials: Optional[dict[str, Any]] = None,
-        meta_data: Optional[dict[str, Any]] = None,
+        *,
+        name: str | None = None,
+        credentials: Dict[str, Any] | None = None,
+        meta_data: Dict[str, Any] | None = None,
     ) -> None:
-        """Update an existing credential.
+        """Update a credential.
 
         Args:
             key_id: Key ID of the credential to update
-            name: New name (optional)
-            credentials: New credentials (optional)
+            name: New name for the credential (optional)
+            credentials: New credential data (optional)
             meta_data: New metadata (optional)
 
         Raises:
-            ValidationError: If key_id is empty or name is invalid
-            KeyNotFoundError: If credential is not found
+            KeyNotFoundError: If credential not found
+            ValidationError: If name is empty or already exists
             EncryptionError: If encryption fails
         """
-        # Guard against None key_id parameter
-        if key_id is None:
-            raise ValidationError("Key ID cannot be None")
+        try:
+            # Update credential using service
+            self._credential_service.update_credential(
+                key_id=key_id,
+                master_password=self._master_password,
+                name=name,
+                credentials=credentials,
+                meta_data=meta_data,
+                iterations=self._iterations
+            )
 
-        # Guard against empty key_id parameter
-        if key_id == "":
-            raise ValidationError("Key ID cannot be empty")
-
-        # Guard against whitespace-only key_id parameter
-        if key_id.strip() == "":
-            raise ValidationError("Key ID cannot contain only whitespace")
-
-        # Guard against None name parameter (if provided)
-        if name is not None and name is None:
-            raise ValidationError("Credential name cannot be None")
-
-        # Guard against empty name parameter (if provided)
-        if name is not None and name == "":
-            raise ValidationError("Credential name cannot be empty")
-
-        # Guard against whitespace-only name parameter (if provided)
-        if name is not None and name.strip() == "":
-            raise ValidationError("Credential name cannot contain only whitespace")
-
-        # Guard against None credentials parameter (if provided)
-        if credentials is not None and credentials is None:
-            raise ValidationError("Credentials cannot be None")
-
-        # Guard against empty credentials parameter (if provided)
-        if credentials is not None and credentials == {}:
-            raise ValidationError("Credentials cannot be empty")
-
-        # Read existing credential file and data
-        credential_file = self._file_manager.read_credential_file(key_id)
-        if not credential_file:
-            raise KeyNotFoundError(f"Credential with key ID '{key_id}' not found")
-            
-        existing_data = self.read_credential(key_id)
-        current_name = credential_file.name
-
-        # Update fields if provided
-        if name is not None:
-            self._check_name_uniqueness(name, exclude_key_id=key_id)
-            current_name = name
-
-        if credentials is not None:
-            existing_data["credentials"] = credentials
-
-        if meta_data is not None:
-            existing_data["meta_data"] = meta_data
-
-        # Re-encrypt and save
-        credential_key = CryptoUtils.generate_random_key()
-        
-        # Derive the master key from the password
-        derived_master_key = CryptoUtils.derive_key_from_password(
-            self._master_password, 
-            Base58.decode(self._current_master_key.salt),
-            iterations=self._iterations
-        )
-        
-        encrypted_key, salt = CryptoUtils.encrypt_key_with_master(
-            credential_key, 
-            derived_master_key
-        )
-
-        encrypted_data = CryptoUtils.encrypt_with_fernet(
-            credential_key, 
-            json.dumps(existing_data).encode("utf-8")
-        )
-
-        # Combine encrypted key and data
-        combined_data = {
-            "encrypted_key": Base58.encode(encrypted_key),
-            "encrypted_data": Base58.encode(encrypted_data),
-        }
-
-        # Create updated credential file
-        credential_file = CredentialFile(
-            key_id=key_id,
-            name=current_name,
-            salt=Base58.encode(salt),
-            data=Base58.encode(json.dumps(combined_data).encode("utf-8")),
-        )
-
-        # Save updated credential file
-        self._file_manager.save_credential_file(key_id, credential_file)
-
-        # Update index if name changed
-        if name is not None and self._credentials_index:
-            self._credentials_index.update_credential_name(key_id, name)
-            self._file_manager.save_credentials_index(self._credentials_index)
+            # Update index
+            self._index_service.update_credential_in_index(
+                key_id=key_id,
+                name=name,
+                metadata=meta_data
+            )
+        except ValidationError:
+            raise
+        except FileOperationError as e:
+            raise KeyNotFoundError(f"Credential with key ID '{key_id}' not found") from e
+        except Exception as e:
+            raise KeyNotFoundError(f"Credential {key_id} not found: {e}") from e
 
     def delete_credential(self, key_id: str) -> None:
         """Delete a credential.
@@ -822,35 +316,208 @@ class KeyCustodian:
             key_id: Key ID of the credential to delete
 
         Raises:
-            ValidationError: If key_id is empty
-            KeyNotFoundError: If credential is not found
+            KeyNotFoundError: If credential not found
         """
-        # Guard against None key_id parameter
-        if key_id is None:
-            raise ValidationError("Key ID cannot be None")
+        try:
+            # Delete credential using service
+            self._credential_service.delete_credential(key_id)
 
-        # Guard against empty key_id parameter
-        if key_id == "":
-            raise ValidationError("Key ID cannot be empty")
+            # Remove from index
+            self._index_service.remove_credential_from_index(key_id)
+        except ValidationError:
+            raise
+        except FileOperationError as e:
+            raise KeyNotFoundError(f"Credential with key ID '{key_id}' not found") from e
+        except Exception as e:
+            raise KeyNotFoundError(f"Credential {key_id} not found: {e}") from e
 
-        # Guard against whitespace-only key_id parameter
-        if key_id.strip() == "":
-            raise ValidationError("Key ID cannot contain only whitespace")
+    def list_credentials(self) -> list[Dict[str, Any]]:
+        """List all credentials.
 
-        # Check if credential exists
-        credential_file = self._file_manager.read_credential_file(key_id)
-        if not credential_file:
-            raise KeyNotFoundError(f"Credential with key ID '{key_id}' not found")
+        Returns:
+            List of credential metadata dictionaries
+        """
+        return self._credential_service.list_credentials()
 
-        # Delete credential file
-        self._file_manager.delete_credential_file(key_id)
+    def search_credentials(self, name_pattern: str) -> Dict[str, Dict[str, Any]]:
+        """Search credentials by name pattern.
 
-        # Update index
-        if self._credentials_index:
-            self._credentials_index.remove_credential(key_id)
-            self._file_manager.save_credentials_index(self._credentials_index)
+        Args:
+            name_pattern: Name pattern to search for (case-insensitive)
 
-    def find_credential_by_name(self, name: str) -> Optional[dict[str, Any]]:
+        Returns:
+            Dictionary mapping key_id to credential index data for matching credentials
+        """
+        return self._index_service.search_credentials_by_name(name_pattern)
+
+    def change_master_password(
+        self,
+        new_master_password: str,
+        *,
+        new_iterations: int | None = None
+    ) -> None:
+        """Change the master password.
+
+        Args:
+            new_master_password: New master password
+            new_iterations: New iterations for key derivation (optional)
+
+        Raises:
+            ValidationError: If new password is invalid
+            MasterKeyError: If password change fails
+        """
+        self._master_key_service.change_master_password(
+            old_master_password=self._master_password,
+            new_master_password=new_master_password,
+            old_iterations=self._iterations,
+            new_iterations=new_iterations
+        )
+
+        # Update instance variables
+        self._master_password = new_master_password
+        if new_iterations is not None:
+            self._iterations = new_iterations
+
+    def get_master_key_info(self) -> Dict[str, Any] | None:
+        """Get information about the current master key.
+
+        Returns:
+            Dictionary with master key information or None if not found
+        """
+        return self._master_key_service.get_master_key_info()
+
+    def get_credential_metadata(self, key_id: str) -> Dict[str, Any] | None:
+        """Get metadata for a credential.
+
+        Args:
+            key_id: Key ID of the credential
+
+        Returns:
+            Dictionary with credential metadata or None if not found
+        """
+        return self._credential_service.get_credential_metadata(key_id)
+
+    def get_index_statistics(self) -> Dict[str, Any]:
+        """Get statistics about the credentials index.
+
+        Returns:
+            Dictionary with index statistics
+        """
+        return self._index_service.get_index_statistics()
+
+    def rebuild_index(self) -> None:
+        """Rebuild the credentials index from credential files.
+
+        This method reads all credential files and rebuilds the index
+        to ensure consistency between the index and actual credential files.
+        """
+        self._index_service.rebuild_index()
+
+    # Rotation methods delegate to rotation manager
+    def rotate_master_key(
+        self,
+        *,
+        new_iterations: int | None = None,
+        create_backup: bool = True,
+        backup_retention_days: int | None = None
+    ) -> str:
+        """Rotate the master encryption key while keeping the same password.
+
+        Args:
+            new_iterations: New iterations for key derivation (optional)
+            create_backup: Whether to create a backup before rotation
+            backup_retention_days: Days to retain backup (optional)
+
+        Returns:
+            Rotation ID for tracking the operation
+        """
+        rotation_id = self._rotation_manager.rotate_master_key(
+            master_password=self._master_password,
+            new_iterations=new_iterations,
+            create_backup=create_backup,
+            backup_retention_days=backup_retention_days
+        )
+        
+        # Update the iterations value after successful rotation
+        if new_iterations is not None:
+            self._iterations = new_iterations
+        
+        return rotation_id
+
+    def rotate_all_credentials(
+        self,
+        *,
+        create_backup: bool = True,
+        backup_retention_days: int | None = None,
+        batch_size: int | None = None
+    ) -> str:
+        """Rotate encryption keys for all credentials.
+
+        Args:
+            create_backup: Whether to create a backup before rotation
+            backup_retention_days: Days to retain backup (optional)
+            batch_size: Number of credentials to rotate in each batch (optional)
+
+        Returns:
+            Rotation ID for tracking the operation
+        """
+        return self._rotation_manager.rotate_all_credentials(
+            master_password=self._master_password,
+            iterations=self._iterations,
+            create_backup=create_backup,
+            backup_retention_days=backup_retention_days,
+            batch_size=batch_size
+        )
+
+    def rollback_rotation(self, rotation_id: str) -> None:
+        """Rollback a specific rotation operation.
+
+        Args:
+            rotation_id: ID of the rotation to rollback
+        """
+        self._rotation_manager.rollback_rotation(
+            rotation_id=rotation_id,
+            master_password=self._master_password
+        )
+
+    def get_rotation_history(self, *, limit: int | None = None) -> list:
+        """Get rotation history.
+
+        Args:
+            limit: Maximum number of history entries to return (optional)
+
+        Returns:
+            List of rotation history entries
+        """
+        return self._rotation_manager.get_rotation_history(limit=limit)
+
+    def cleanup_expired_backups(self) -> int:
+        """Clean up expired rotation backups.
+
+        Returns:
+            Number of backups cleaned up
+        """
+        return self._rotation_manager.cleanup_expired_backups()
+
+    @property
+    def file_manager(self) -> FileManager:
+        """Get the file manager instance.
+
+        Returns:
+            FileManager instance
+        """
+        return self._file_manager
+
+    @property
+    def rotation_manager(self) -> KeyRotationManager:
+        """Get the rotation manager instance.
+
+        Returns:
+            KeyRotationManager instance
+        """
+        return self._rotation_manager
+
+    def find_credential_by_name(self, name: str) -> Dict[str, Any] | None:
         """Find a credential by name.
 
         Args:
@@ -861,47 +528,34 @@ class KeyCustodian:
 
         Raises:
             ValidationError: If name is empty
-            KeyNotFoundError: If no credentials index is available
         """
-        # Guard against None name parameter
-        if name is None:
-            raise ValidationError("Name cannot be None")
+        return self._credential_service.find_credential_by_name(name)
 
-        # Guard against empty name parameter
-        if name == "":
-            raise ValidationError("Name cannot be empty")
+    # Essential properties for tests and CLI
+    @property
+    def data_directory(self) -> str:
+        """Get the data directory."""
+        return self._data_dir
 
-        # Guard against whitespace-only name parameter
-        if name.strip() == "":
-            raise ValidationError("Name cannot contain only whitespace")
+    @property
+    def master_key_id(self) -> str:
+        """Get the master key ID."""
+        master_key = self._master_key_service.load_master_key()
+        return master_key.key_id if master_key else ""
 
-        if not self._credentials_index:
-            raise KeyNotFoundError("No credentials index available")
+    @property
+    def credential_count(self) -> int:
+        """Get the number of credentials."""
+        return len(self._credential_service.list_credentials())
 
-        key_id = self._credentials_index.get_key_id(name)
-        if not key_id:
-            return None
-
-        return {"key_id": key_id, "name": name}
-
-    def list_credentials(self) -> list[dict[str, Any]]:
-        """List all credentials.
+    @property
+    def iterations(self) -> int | None:
+        """Get the iterations value used for key derivation.
 
         Returns:
-            List of credential info dictionaries
+            The iterations value, or None if using default iterations
         """
-        if not self._credentials_index:
-            return []
-
-        credentials = []
-        for key_id, name in self._credentials_index.credentials.items():
-            credentials.append({"key_id": key_id, "name": name})
-
-        return credentials
-
-    def rebuild_index(self) -> None:
-        """Manually rebuild the credentials index from files."""
-        self._rebuild_index_from_files()
+        return self._iterations
 
     def backup_credentials(self, backup_dir: str) -> None:
         """Backup all credentials to a directory.
@@ -913,67 +567,4 @@ class KeyCustodian:
             ValidationError: If backup_dir is empty
             FileOperationError: If backup fails
         """
-        # Guard against None backup_dir parameter
-        if backup_dir is None:
-            raise ValidationError("Backup directory cannot be None")
-
-        # Guard against empty backup_dir parameter
-        if backup_dir == "":
-            raise ValidationError("Backup directory cannot be empty")
-
-        # Guard against whitespace-only backup_dir parameter
-        if backup_dir.strip() == "":
-            raise ValidationError("Backup directory cannot contain only whitespace")
-
-        # Guard against missing data directory
-        if not self._data_dir:
-            raise ValidationError("Data directory is not set")
-
-        try:
-            backup_path = Path(backup_dir)
-            backup_path.mkdir(parents=True, exist_ok=True)
-
-            # Copy all files
-            shutil.copytree(
-                self._data_dir, 
-                backup_path, 
-                dirs_exist_ok=True
-            )
-
-        except Exception as e:
-            raise ValidationError(f"Backup failed: {e}") from e
-
-    @property
-    def data_directory(self) -> str:
-        """Get the data directory."""
-        return self._data_dir
-
-    @property
-    def master_key_id(self) -> str:
-        """Get the master key ID."""
-        return self._current_master_key.key_id if self._current_master_key else ""
-
-    @property
-    def credential_count(self) -> int:
-        """Get the number of credentials."""
-        if not self._credentials_index:
-            return 0
-        return len(self._credentials_index.credentials)
-
-    # No rate limiting support
-
-    def __enter__(self) -> "KeyCustodian":
-        """Context manager entry."""
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        """Context manager exit with cleanup."""
-        self.cleanup()
-
-    def cleanup(self) -> None:
-        """Clean up sensitive data from memory."""
-        # Clear sensitive data
-        if hasattr(self, '_master_password'):
-            CryptoUtils.secure_zero_string(self._master_password)
-            self._master_password = None
-        # No caches or rate limiting state to clear
+        self._backup_service.backup_credentials(backup_dir)

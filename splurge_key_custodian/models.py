@@ -37,6 +37,7 @@ class CredentialFile:
     salt: str  # Base58 encoded salt
     data: str  # Base58 encoded encrypted credential data
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    rotation_version: int = field(default=1)  # Track key rotation version
 
     def __post_init__(self) -> None:
         """Validate and process fields after initialization."""
@@ -66,6 +67,7 @@ class CredentialFile:
             "salt": self.salt,
             "data": self.data,
             "created_at": self.created_at.isoformat(),
+            "rotation_version": self.rotation_version,
         }
 
     @classmethod
@@ -77,6 +79,7 @@ class CredentialFile:
             salt=data["salt"],
             data=data["data"],
             created_at=data.get("created_at"),
+            rotation_version=data.get("rotation_version", 1),
         )
 
 
@@ -142,11 +145,11 @@ class CredentialsIndex:
                 del self._name_to_key_id[name]
             self.last_updated = datetime.now(timezone.utc)
 
-    def get_name(self, key_id: str) -> Optional[str]:
+    def get_name(self, key_id: str) -> str | None:
         """Get credential name by key_id."""
         return self.credentials.get(key_id)
 
-    def get_key_id(self, name: str) -> Optional[str]:
+    def get_key_id(self, name: str) -> str | None:
         """Get key_id by credential name."""
         return self._name_to_key_id.get(name)
 
@@ -168,6 +171,130 @@ class CredentialsIndex:
                 del self._name_to_key_id[old_name]
             self._name_to_key_id[new_name] = key_id
             self.last_updated = datetime.now(timezone.utc)
+
+
+@dataclass
+class RotationHistory:
+    """Track key rotation history for audit and rollback purposes."""
+
+    rotation_id: str
+    rotation_type: str  # "master", "bulk"
+    target_key_id: str | None = None  # For future use
+    old_master_key_id: str | None = None  # For master key rotations
+    new_master_key_id: str | None = None  # For master key rotations
+    affected_credentials: list[str] = field(default_factory=list)  # List of affected key_ids
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        """Validate and process fields after initialization."""
+        if not self.rotation_id:
+            raise ValueError("rotation_id cannot be empty")
+        if not self.rotation_type:
+            raise ValueError("rotation_type cannot be empty")
+        if self.rotation_type not in ["master", "bulk"]:
+            raise ValueError("rotation_type must be one of: master, bulk")
+
+        # Parse datetime string if provided
+        if isinstance(self.created_at, str):
+            self.created_at = self._parse_datetime(self.created_at)
+
+    @staticmethod
+    def _parse_datetime(value: str) -> datetime:
+        """Parse datetime string to datetime object."""
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary with proper serialization."""
+        return {
+            "rotation_id": self.rotation_id,
+            "rotation_type": self.rotation_type,
+            "target_key_id": self.target_key_id,
+            "old_master_key_id": self.old_master_key_id,
+            "new_master_key_id": self.new_master_key_id,
+            "affected_credentials": self.affected_credentials,
+            "created_at": self.created_at.isoformat(),
+            "metadata": self.metadata,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "RotationHistory":
+        """Create RotationHistory from dictionary."""
+        return cls(
+            rotation_id=data["rotation_id"],
+            rotation_type=data["rotation_type"],
+            target_key_id=data.get("target_key_id"),
+            old_master_key_id=data.get("old_master_key_id"),
+            new_master_key_id=data.get("new_master_key_id"),
+            affected_credentials=data.get("affected_credentials", []),
+            created_at=data.get("created_at"),
+            metadata=data.get("metadata", {}),
+        )
+
+
+@dataclass
+class RotationBackup:
+    """Backup data for key rotation operations."""
+
+    backup_id: str
+    rotation_id: str
+    backup_type: str  # "master", "bulk"
+    original_data: dict[str, Any]  # Original encrypted data before rotation
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    expires_at: datetime | None = None  # Optional expiration for automatic cleanup
+
+    def __post_init__(self) -> None:
+        """Validate and process fields after initialization."""
+        if not self.backup_id:
+            raise ValueError("backup_id cannot be empty")
+        if not self.rotation_id:
+            raise ValueError("rotation_id cannot be empty")
+        if not self.backup_type:
+            raise ValueError("backup_type cannot be empty")
+        if self.backup_type not in ["master", "bulk"]:
+            raise ValueError("backup_type must be one of: master, bulk")
+
+        # Parse datetime strings if provided
+        if isinstance(self.created_at, str):
+            self.created_at = self._parse_datetime(self.created_at)
+        if isinstance(self.expires_at, str):
+            self.expires_at = self._parse_datetime(self.expires_at)
+
+    @staticmethod
+    def _parse_datetime(value: str) -> datetime:
+        """Parse datetime string to datetime object."""
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary with proper serialization."""
+        result = {
+            "backup_id": self.backup_id,
+            "rotation_id": self.rotation_id,
+            "backup_type": self.backup_type,
+            "original_data": self.original_data,
+            "created_at": self.created_at.isoformat(),
+        }
+        if self.expires_at:
+            result["expires_at"] = self.expires_at.isoformat()
+        return result
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "RotationBackup":
+        """Create RotationBackup from dictionary."""
+        return cls(
+            backup_id=data["backup_id"],
+            rotation_id=data["rotation_id"],
+            backup_type=data["backup_type"],
+            original_data=data["original_data"],
+            created_at=data.get("created_at"),
+            expires_at=data.get("expires_at"),
+        )
+
+    def is_expired(self) -> bool:
+        """Check if the backup has expired."""
+        if self.expires_at is None:
+            return False
+        return datetime.now(timezone.utc) > self.expires_at
 
 
 @dataclass
@@ -278,6 +405,7 @@ class MasterKey:
     key_id: str
     credentials: str
     salt: str
+    iterations: int | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def __post_init__(self) -> None:
@@ -305,14 +433,27 @@ class MasterKey:
             "created_at": self.created_at.isoformat(),
             "credentials": self.credentials,
             "salt": self.salt,
+            "iterations": self.iterations,
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "MasterKey":
-        """Create MasterKey from dictionary."""
+        """Create MasterKey from dictionary.
+        
+        Args:
+            data: Dictionary containing master key data
+            
+        Returns:
+            MasterKey instance
+            
+        Note:
+            For backward compatibility, if 'iterations' is not present in the data,
+            it defaults to None, which will use the system default when needed.
+        """
         return cls(
             key_id=data["key_id"],
             credentials=data["credentials"],
             salt=data["salt"],
+            iterations=data.get("iterations"),  # None if not present (backward compatible)
             created_at=data.get("created_at"),
         )

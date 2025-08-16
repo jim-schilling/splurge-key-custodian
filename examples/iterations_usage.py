@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Example demonstrating the iterations parameter in KeyCustodian."""
 
+import os
 import tempfile
 import shutil
 from splurge_key_custodian.key_custodian import KeyCustodian
 from splurge_key_custodian.constants import Constants
+from splurge_key_custodian.base58 import Base58
 
 def main():
     """Demonstrate iterations parameter usage."""
@@ -23,7 +25,7 @@ def main():
             master_password=master_password,
             data_dir=temp_dir
         )
-        print(f"   - Iterations: {custodian_default._iterations}")
+        print(f"   - Iterations: {custodian_default.iterations}")
         
         # Create a credential with default iterations
         key_id = custodian_default.create_credential(
@@ -41,7 +43,7 @@ def main():
                 data_dir=temp_dir2,
                 iterations=Constants.MIN_ITERATIONS()
             )
-            print(f"   - Iterations: {custodian_custom._iterations}")
+            print(f"   - Iterations: {custodian_custom.iterations}")
             
             # Create a credential with custom iterations
             key_id2 = custodian_custom.create_credential(
@@ -70,8 +72,6 @@ def main():
         print(f"   - Retrieved credential: {credential}")
         
         print("\n5. Testing init_from_environment with iterations...")
-        import os
-        from splurge_key_custodian.base58 import Base58
         
         # Set up environment variable
         env_var = "TEST_MASTER_PASSWORD"
@@ -86,7 +86,7 @@ def main():
                 data_dir=temp_dir3,
                 iterations=Constants.MIN_ITERATIONS()
             )
-            print(f"   - Created from environment with iterations: {custodian_env._iterations}")
+            print(f"   - Created from environment with iterations: {custodian_env.iterations}")
         finally:
             # Clean up environment variable and directory
             if env_var in os.environ:
