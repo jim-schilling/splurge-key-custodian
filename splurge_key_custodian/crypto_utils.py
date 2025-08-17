@@ -22,7 +22,7 @@ class CryptoUtils:
     
     @classmethod
     def B58_LIKE_CHAR_CLASS(cls) -> str:
-        return Base58.B58_CHARS() + Constants.ALLOWABLE_SPECIAL()
+        return Base58.ALPHABET + Constants.ALLOWABLE_SPECIAL()
 
     @staticmethod
     def constant_time_compare(a: bytes, b: bytes) -> bool:
@@ -52,10 +52,10 @@ class CryptoUtils:
         elif length > Constants.MAX_PASSWORD_LENGTH():
             length = Constants.MAX_PASSWORD_LENGTH()
 
-        result = ''.join(secrets.choice(Base58.B58_ALPHA_UPPER()) for _ in range(cls._CHAR_CLASS_MIN_LENGTH))
-        result += ''.join(secrets.choice(Base58.B58_ALPHA_LOWER()) for _ in range(cls._CHAR_CLASS_MIN_LENGTH))
+        result = ''.join(secrets.choice(Base58.ALPHA_UPPER) for _ in range(cls._CHAR_CLASS_MIN_LENGTH))
+        result += ''.join(secrets.choice(Base58.ALPHA_LOWER) for _ in range(cls._CHAR_CLASS_MIN_LENGTH))
         result += ''.join(secrets.choice(Constants.ALLOWABLE_SPECIAL()) for _ in range(cls._CHAR_CLASS_MIN_LENGTH))
-        result += ''.join(secrets.choice(Base58.B58_DIGIT()) for _ in range(cls._CHAR_CLASS_MIN_LENGTH))
+        result += ''.join(secrets.choice(Base58.DIGITS) for _ in range(cls._CHAR_CLASS_MIN_LENGTH))
 
         # Add more characters to the result to increase the length
         result += ''.join(secrets.choice(cls.B58_LIKE_CHAR_CLASS()) for _ in range(length - len(result)))

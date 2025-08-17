@@ -1,12 +1,19 @@
-"""Base-58 encoding and decoding utilities."""
+"""
+This module provides a class for base-58 encoding and decoding operations.
 
-import string
-from typing import Any
+Copyright (c) 2025 Jim Schilling
 
-from splurge_key_custodian.exceptions import ValidationError
+This module is licensed under the MIT License.
+"""
 
 
-class Base58ValidationError(ValidationError):
+class Base58Error(Exception):
+    """Base class for all base-58 errors."""
+
+class Base58TypeError(Base58Error):
+    """Raised when a type error occurs."""
+
+class Base58ValidationError(Base58Error):
     """Raised when base-58 validation fails."""
 
 
@@ -23,27 +30,11 @@ class Base58:
     "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
     """
 
-    _B58_ALPHA_UPPER = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
-    _B58_ALPHA_LOWER = 'abcdefghijkmnopqrstuvwxyz'    
-    _B58_DIGIT = '123456789' 
-    _B58_CHARS = _B58_DIGIT + _B58_ALPHA_UPPER + _B58_ALPHA_LOWER 
-    _BASE = len(_B58_CHARS)
-
-    @classmethod
-    def B58_ALPHA_UPPER(cls) -> str:
-        return cls._B58_ALPHA_UPPER
-    
-    @classmethod
-    def B58_ALPHA_LOWER(cls) -> str:
-        return cls._B58_ALPHA_LOWER
-    
-    @classmethod
-    def B58_DIGIT(cls) -> str:
-        return cls._B58_DIGIT  
-    
-    @classmethod
-    def B58_CHARS(cls) -> str:
-        return cls._B58_CHARS
+    DIGITS = '123456789'
+    ALPHA_UPPER = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+    ALPHA_LOWER = 'abcdefghijkmnopqrstuvwxyz'    
+    ALPHABET = DIGITS + ALPHA_UPPER + ALPHA_LOWER 
+    _BASE = len(ALPHABET)    
     
     @classmethod
     def encode(cls, data: bytes) -> str:
@@ -57,11 +48,13 @@ class Base58:
             Base-58 encoded string
 
         Raises:
-            ValidationError: If input data is empty or invalid
+            Base58TypeError: If input is not bytes
+            Base58ValidationError: If input data is empty or invalid
         """
+        if not isinstance(data, bytes):
+            raise Base58TypeError("Input must be bytes")
+        
         if not data:
-            if data is None:
-                raise Base58ValidationError("Input cannot be None")
             raise Base58ValidationError("Cannot encode empty data")
 
         # Convert bytes to integer
@@ -69,18 +62,18 @@ class Base58:
 
         # Handle zero case
         if num == 0:
-            return cls._B58_CHARS[0] * len(data)
+            return cls.ALPHABET[0] * len(data)
 
         # Convert to base-58
         result = ""
         while num > 0:
             num, remainder = divmod(num, cls._BASE)
-            result = cls._B58_CHARS[remainder] + result
+            result = cls.ALPHABET[remainder] + result
 
         # Add leading zeros for each leading zero byte in original data
         for byte in data:
             if byte == 0:
-                result = cls._B58_CHARS[0] + result
+                result = cls.ALPHABET[0] + result
             else:
                 break
 
@@ -98,13 +91,11 @@ class Base58:
             Decoded binary data
 
         Raises:
-            TypeError: If input is not a string
-            ValidationError: If input string is empty or contains invalid characters
+            Base58TypeError: If input is not a string
+            Base58ValidationError: If input string is empty or contains invalid characters
         """
         if not isinstance(base58_data, str):
-            if base58_data is None:
-                raise Base58ValidationError("Input cannot be None")
-            raise TypeError("Input must be a string")
+            raise Base58TypeError("Input must be a string")
 
         if not base58_data:
             raise Base58ValidationError("Cannot decode empty string")
@@ -115,7 +106,7 @@ class Base58:
         # Count leading '1' characters
         leading_ones = 0
         for char in base58_data:
-            if char == cls._B58_CHARS[0]:
+            if char == cls.ALPHABET[0]:
                 leading_ones += 1
             else:
                 break
@@ -127,15 +118,15 @@ class Base58:
         # Convert base-58 to integer (skip leading ones)
         num = 0
         for char in base58_data[leading_ones:]:
-            num = num * cls._BASE + cls._B58_CHARS.index(char)
+            num = num * cls._BASE + cls.ALPHABET.index(char)
 
-        # Convert integer to bytes
+        # Handle case where num is 0 (all remaining chars were '1')
         if num == 0:
-            return b"\x00" * leading_ones
-
-        # Calculate minimum byte length
-        byte_length = (num.bit_length() + 7) // 8
-        result = num.to_bytes(byte_length, byteorder="big")
+            result = b""
+        else:
+            # Calculate minimum byte length
+            byte_length = (num.bit_length() + 7) // 8
+            result = num.to_bytes(byte_length, byteorder="big")
 
         # Add leading zeros for each leading '1' character
         return b"\x00" * leading_ones + result
@@ -158,19 +149,6 @@ class Base58:
             return False
 
         try:
-            return all(char in cls._B58_CHARS for char in base58_data)
+            return all(char in cls.ALPHABET for char in base58_data)
         except Exception:
-            return False
-
-    @classmethod
-    def is_valid_base58(cls, base58_data: str) -> bool:
-        """
-        Check if a string is valid base-58 (alias for is_valid).
-
-        Args:
-            base58_data: String to validate
-
-        Returns:
-            True if valid base-58, False otherwise
-        """
-        return cls.is_valid(base58_data)
+            return False    
