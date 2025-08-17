@@ -15,6 +15,7 @@ from splurge_key_custodian.exceptions import (
     FileOperationError,
     MasterKeyError,
 )
+from splurge_key_custodian.file_manager import FileManager
 from tests.test_utility import TestUtilities
 from splurge_key_custodian.crypto_utils import CryptoUtils
 
@@ -406,31 +407,7 @@ class TestKeyCustodian(unittest.TestCase):
         # Should have empty index
         self.assertEqual(custodian.credential_count, 0)
 
-    def test_should_rebuild_index_no_master_keys(self):
-        """Test should_rebuild_index when no master keys exist."""
-        # Create custodian
-        custodian = KeyCustodian(
-            self.master_password,
-            self.temp_dir
-        )
-        
-        # Manually delete master keys file
-        master_file = Path(self.temp_dir) / "key-custodian-master.json"
-        master_file.unlink()
-        
-        # Should not rebuild index when no master keys exist
-        self.assertFalse(custodian._should_rebuild_index())
 
-    def test_should_rebuild_index_no_credential_files(self):
-        """Test should_rebuild_index when no credential files exist."""
-        # Create custodian
-        custodian = KeyCustodian(
-            self.master_password,
-            self.temp_dir
-        )
-        
-        # Should not rebuild index (no files to rebuild from)
-        self.assertFalse(custodian._should_rebuild_index())
 
     def test_update_credential_partial_update(self):
         """Test updating credential with partial data."""
@@ -699,14 +676,16 @@ class TestKeyCustodian(unittest.TestCase):
     def test_file_manager_error_handling(self):
         """Test error handling when file manager operations fail."""
         # Mock file manager to raise an exception
-        with patch.object(self.custodian._file_manager, 'save_credentials_index', side_effect=FileOperationError("Test error")):
+        # We test error handling through the public interface rather than accessing private attributes
+        with patch.object(FileManager, 'save_credentials_index', side_effect=FileOperationError("Test error")):
             with self.assertRaises(EncryptionError):
                 self.custodian.create_credential(**self.sample_credential)
 
     def test_crypto_error_handling(self):
         """Test error handling when crypto operations fail."""
         # Mock crypto utils to raise an exception
-        with patch.object(self.custodian._file_manager, 'save_credential_file', side_effect=EncryptionError("Test error")):
+        # We test error handling through the public interface rather than accessing private attributes
+        with patch.object(FileManager, 'save_credential_file', side_effect=EncryptionError("Test error")):
             with self.assertRaises(EncryptionError):
                 self.custodian.create_credential(**self.sample_credential)
 

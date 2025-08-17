@@ -9,7 +9,7 @@ import tempfile
 import shutil
 from io import StringIO
 
-from splurge_key_custodian.cli import KeyCustodianCLI
+from splurge_key_custodian.cli import KeyCustodianCLI, main
 from splurge_key_custodian.exceptions import (
     ValidationError,
     KeyNotFoundError,
@@ -221,7 +221,6 @@ class TestKeyCustodianCLIUnit(unittest.TestCase):
         encoded_data = output.strip()
         
         # Verify it's valid Base58 by trying to decode it
-        from splurge_key_custodian.base58 import Base58
         try:
             decoded = Base58.decode(encoded_data)
             decoded_text = decoded.decode("utf-8")
@@ -258,15 +257,14 @@ class TestKeyCustodianCLIUnit(unittest.TestCase):
         self.assertEqual(len(output.strip()), Constants.MIN_PASSWORD_LENGTH())
         
         # Verify it contains the expected character sets
-        from splurge_key_custodian.crypto_utils import CryptoUtils
         generated_string = output.strip()
         
         # Check that the generated string contains characters from all expected sets
         string_chars = set(generated_string)
-        self.assertTrue(any(c in CryptoUtils.B58_ALPHA_UPPER() for c in string_chars))
-        self.assertTrue(any(c in CryptoUtils.B58_ALPHA_LOWER() for c in string_chars))
-        self.assertTrue(any(c in CryptoUtils.ALLOWABLE_SPECIAL() for c in string_chars))
-        self.assertTrue(any(c in CryptoUtils.B58_DIGIT() for c in string_chars))
+        self.assertTrue(any(c in Base58.ALPHA_UPPER for c in string_chars))
+        self.assertTrue(any(c in Base58.ALPHA_LOWER for c in string_chars))
+        self.assertTrue(any(c in Base58.DIGITS for c in string_chars))
+        self.assertTrue(any(c in Constants.ALLOWABLE_SPECIAL() for c in string_chars))
 
     def test_run_base58_both_args_error(self):
         """Test base58 command with both encode and decode args."""
@@ -395,7 +393,6 @@ class TestKeyCustodianCLIUnit(unittest.TestCase):
         """Test main function."""
         with patch('sys.argv', ['cli.py', '-p', self.master_password, '-d', self.temp_dir, 'list']):
             with patch('sys.stdout', new=StringIO()) as mock_stdout:
-                from splurge_key_custodian.cli import main
                 main()
                 
                 payload = json.loads(mock_stdout.getvalue())

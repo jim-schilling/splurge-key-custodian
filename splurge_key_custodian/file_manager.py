@@ -1,13 +1,21 @@
 """File management utilities for hybrid approach with separate credential files."""
 
 import json
+import logging
 import os
 import shutil
 from pathlib import Path
 from typing import Any, Optional
 
 from splurge_key_custodian.exceptions import FileOperationError
-from splurge_key_custodian.models import CredentialFile, CredentialsIndex
+from splurge_key_custodian.models import (
+    CredentialFile, 
+    CredentialsIndex, 
+    RotationHistory, 
+    RotationBackup
+)
+
+logger = logging.getLogger(__name__)
 
 
 class FileManager:
@@ -25,6 +33,8 @@ class FileManager:
         self._data_dir = Path(data_dir)
         self._master_file = self._data_dir / "key-custodian-master.json"
         self._index_file = self._data_dir / "key-custodian-index.json"
+        self._rotation_history_file = self._data_dir / "key-custodian-rotation-history.json"
+        self._backups_dir = self._data_dir / "rotation-backups"
         self._ensure_data_directory()
 
     def _ensure_data_directory(self) -> None:
@@ -42,10 +52,12 @@ class FileManager:
             data_dir: Directory path to ensure exists
         """
         data_dir.mkdir(parents=True, exist_ok=True)
+        # Ensure backups directory exists
+        self._backups_dir.mkdir(parents=True, exist_ok=True)
 
     def _write_json_atomic(
-        self, 
-        file_path: Path, 
+        self,
+        file_path: Path,
         data: dict[str, Any]
     ) -> None:
         """Write JSON data atomically using temporary file.
@@ -61,6 +73,9 @@ class FileManager:
         archive_file = file_path.with_suffix(".archive")
 
         try:
+            # Ensure parent directory exists for atomic operation
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            
             # Write to temporary file
             with temp_file.open("w", encoding="utf-8") as f:
                 json.dump(
@@ -90,7 +105,7 @@ class FileManager:
                 temp_file.unlink()
             raise FileOperationError(f"Failed to write file {file_path}: {e}") from e
 
-    def _read_json(self, file_path: Path) -> Optional[dict[str, Any]]:
+    def _read_json(self, file_path: Path) -> dict[str, Any] | None:
         """Read JSON data from file.
 
         Args:
@@ -126,7 +141,7 @@ class FileManager:
         }
         self._write_json_atomic(self._master_file, data)
 
-    def read_master_keys(self) -> Optional[dict[str, Any]]:
+    def read_master_keys(self) -> dict[str, Any] | None:
         """Read master keys from file.
 
         Returns:
@@ -148,7 +163,7 @@ class FileManager:
         """
         self._write_json_atomic(self._index_file, index.to_dict())
 
-    def read_credentials_index(self) -> Optional[CredentialsIndex]:
+    def read_credentials_index(self) -> CredentialsIndex | None:
         """Read credentials index from file.
 
         Returns:
@@ -183,7 +198,7 @@ class FileManager:
         file_path = self._data_dir / f"{key_id}.credential.json"
         self._write_json_atomic(file_path, credential_file.to_dict())
 
-    def read_credential_file(self, key_id: str) -> Optional[CredentialFile]:
+    def read_credential_file(self, key_id: str) -> CredentialFile | None:
         """Read individual credential file.
 
         Args:
@@ -234,6 +249,131 @@ class FileManager:
             credential_files.append(key_id)
         return credential_files
 
+    def save_rotation_history(self, history: list[RotationHistory]) -> None:
+        """Save rotation history to file atomically.
+
+        Args:
+            history: List of RotationHistory objects to save
+
+        Raises:
+            FileOperationError: If save operation fails
+        """
+        data = {
+            "rotation_history": [h.to_dict() for h in history],
+            "version": "1.0",
+        }
+        self._write_json_atomic(self._rotation_history_file, data)
+
+    def read_rotation_history(self) -> list[RotationHistory]:
+        """Read rotation history from file.
+
+        Returns:
+            List of RotationHistory objects
+
+        Raises:
+            FileOperationError: If read operation fails
+        """
+        data = self._read_json(self._rotation_history_file)
+        if data is None:
+            return []
+
+        try:
+            history_list = []
+            for history_data in data.get("rotation_history", []):
+                history = RotationHistory.from_dict(history_data)
+                history_list.append(history)
+            return history_list
+        except Exception as e:
+            raise FileOperationError(f"Failed to parse rotation history: {e}") from e
+
+    def save_rotation_backup(self, backup: RotationBackup) -> None:
+        """Save rotation backup to file atomically.
+
+        Args:
+            backup: RotationBackup object to save
+
+        Raises:
+            FileOperationError: If save operation fails
+        """
+        file_path = self._backups_dir / f"{backup.backup_id}.backup.json"
+        self._write_json_atomic(file_path, backup.to_dict())
+
+    def read_rotation_backup(self, backup_id: str) -> RotationBackup | None:
+        """Read rotation backup from file.
+
+        Args:
+            backup_id: Backup ID to read
+
+        Returns:
+            RotationBackup object, or None if file doesn't exist
+
+        Raises:
+            FileOperationError: If read operation fails
+        """
+        file_path = self._backups_dir / f"{backup_id}.backup.json"
+        data = self._read_json(file_path)
+        if data is None:
+            return None
+
+        try:
+            return RotationBackup.from_dict(data)
+        except Exception as e:
+            raise FileOperationError(f"Failed to parse rotation backup: {e}") from e
+
+    def delete_rotation_backup(self, backup_id: str) -> None:
+        """Delete rotation backup file.
+
+        Args:
+            backup_id: Backup ID to delete
+
+        Raises:
+            FileOperationError: If delete operation fails
+        """
+        file_path = self._backups_dir / f"{backup_id}.backup.json"
+        try:
+            if file_path.exists():
+                file_path.unlink()
+        except Exception as e:
+            raise FileOperationError(f"Failed to delete backup file {file_path}: {e}") from e
+
+    def list_rotation_backups(self) -> list[str]:
+        """List all rotation backup IDs.
+
+        Returns:
+            List of backup IDs for existing backup files
+        """
+        backup_files = []
+        for file_path in self._backups_dir.glob("*.backup.json"):
+            # Extract backup_id from filename (remove .backup.json suffix)
+            backup_id = file_path.stem.replace(".backup", "")
+            backup_files.append(backup_id)
+        return backup_files
+
+    def cleanup_expired_backups(self) -> int:
+        """Clean up expired rotation backups.
+
+        This method attempts to delete expired backup files. If individual backup
+        deletions fail due to file system errors (permissions, disk space, etc.),
+        the errors are logged but the cleanup continues with other backups.
+
+        Returns:
+            Number of backups cleaned up
+        """
+        cleaned_count = 0
+        for backup_id in self.list_rotation_backups():
+            backup = self.read_rotation_backup(backup_id)
+            if backup and backup.is_expired():
+                try:
+                    self.delete_rotation_backup(backup_id)
+                    cleaned_count += 1
+                except (OSError, FileOperationError) as e:
+                    # Log file system errors but continue with other backups
+                    logger.warning(f"Failed to delete expired backup {backup_id}: {e}")
+                except Exception as e:
+                    # Log unexpected errors but continue with other backups
+                    logger.error(f"Unexpected error deleting expired backup {backup_id}: {e}")
+        return cleaned_count
+
     def backup_files(self, backup_dir: str) -> None:
         """Create a backup of all key files.
 
@@ -255,24 +395,56 @@ class FileManager:
             if self._index_file.exists():
                 shutil.copy2(self._index_file, backup_path / self._index_file.name)
 
+            # Backup rotation history file
+            if self._rotation_history_file.exists():
+                shutil.copy2(self._rotation_history_file, backup_path / self._rotation_history_file.name)
+
             # Backup credential files
             for file_path in self._data_dir.glob("*.credential.json"):
                 shutil.copy2(file_path, backup_path / file_path.name)
+
+            # Backup rotation backups directory
+            if self._backups_dir.exists():
+                backup_backups_dir = backup_path / "rotation-backups"
+                if backup_backups_dir.exists():
+                    shutil.rmtree(backup_backups_dir)
+                shutil.copytree(self._backups_dir, backup_backups_dir)
 
         except Exception as e:
             raise FileOperationError(f"Failed to create backup: {e}") from e
 
     def cleanup_temp_files(self) -> None:
-        """Clean up any temporary files that may have been left behind."""
+        """Clean up any temporary files that may have been left behind.
+        
+        This method attempts to remove temporary files that may have been left
+        behind from interrupted operations. If individual file deletions fail
+        due to file system errors, the errors are logged but cleanup continues.
+        """
         try:
             for temp_file in self._data_dir.glob("*.temp"):
-                temp_file.unlink()
-        except Exception:
-            # Ignore cleanup errors
-            pass
+                try:
+                    temp_file.unlink()
+                except (OSError, FileNotFoundError) as e:
+                    logger.debug(f"Failed to delete temp file {temp_file}: {e}")
+                except Exception as e:
+                    logger.warning(f"Unexpected error deleting temp file {temp_file}: {e}")
+                    
+            for temp_file in self._backups_dir.glob("*.temp"):
+                try:
+                    temp_file.unlink()
+                except (OSError, FileNotFoundError) as e:
+                    logger.debug(f"Failed to delete temp file {temp_file}: {e}")
+                except Exception as e:
+                    logger.warning(f"Unexpected error deleting temp file {temp_file}: {e}")
+        except Exception as e:
+            logger.warning(f"Failed to access directories during temp file cleanup: {e}")
 
     def _set_secure_permissions(self, file_path: Path) -> None:
         """Set secure file permissions (owner read/write only).
+        
+        This method attempts to set secure file permissions. If permission setting
+        fails due to file system limitations or permissions, the error is logged
+        but the operation continues as this is not critical for functionality.
         
         Args:
             file_path: Path to the file to secure
@@ -280,9 +452,12 @@ class FileManager:
         try:
             # Set file permissions to owner read/write only (600)
             os.chmod(file_path, 0o600)
-        except Exception:
-            # Ignore permission errors - they may not be critical
-            pass
+        except (OSError, PermissionError) as e:
+            # Log permission errors but continue - they may not be critical
+            logger.debug(f"Failed to set secure permissions on {file_path}: {e}")
+        except Exception as e:
+            # Log unexpected errors
+            logger.warning(f"Unexpected error setting permissions on {file_path}: {e}")
 
     @property
     def data_directory(self) -> Path:
@@ -298,3 +473,13 @@ class FileManager:
     def index_file_path(self) -> Path:
         """Get the index file path."""
         return self._index_file
+
+    @property
+    def rotation_history_file_path(self) -> Path:
+        """Get the rotation history file path."""
+        return self._rotation_history_file
+
+    @property
+    def backups_directory(self) -> Path:
+        """Get the backups directory path."""
+        return self._backups_dir

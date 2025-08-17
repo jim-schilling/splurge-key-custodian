@@ -1,15 +1,25 @@
 """Tests for the file_manager module."""
 
 import json
+import logging
 import os
 import shutil
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch, mock_open, MagicMock
 
 from splurge_key_custodian.file_manager import FileManager
-from splurge_key_custodian.models import KeyCustodianData, MasterKey, Credential, CredentialData, CredentialFile, CredentialsIndex
+from splurge_key_custodian.models import (
+    KeyCustodianData, 
+    MasterKey, 
+    Credential, 
+    CredentialData, 
+    CredentialFile, 
+    CredentialsIndex,
+    RotationBackup
+)
 from splurge_key_custodian.exceptions import FileOperationError
 
 
@@ -27,9 +37,9 @@ class TestFileManager(unittest.TestCase):
 
     def test_initialization(self):
         """Test FileManager initialization."""
-        self.assertEqual(self.file_manager._data_dir, Path(self.temp_dir))
-        self.assertEqual(self.file_manager._master_file, Path(self.temp_dir) / "key-custodian-master.json")
-        self.assertEqual(self.file_manager._index_file, Path(self.temp_dir) / "key-custodian-index.json")
+        self.assertEqual(self.file_manager.data_directory, Path(self.temp_dir))
+        self.assertEqual(self.file_manager.master_file_path, Path(self.temp_dir) / "key-custodian-master.json")
+        self.assertEqual(self.file_manager.index_file_path, Path(self.temp_dir) / "key-custodian-index.json")
         
         # Check that directory was created
         self.assertTrue(Path(self.temp_dir).exists())
@@ -127,8 +137,8 @@ class TestFileManager(unittest.TestCase):
     def test_save_master_keys(self):
         """Test saving master keys."""
         master_keys = [
-            {"key_id": "key1", "salt": "salt1", "created_at": "2023-01-01T00:00:00Z"},
-            {"key_id": "key2", "salt": "salt2", "created_at": "2023-01-02T00:00:00Z"}
+            {"key_id": "key1", "salt": "salt1", "iterations": 100000, "created_at": "2023-01-01T00:00:00Z"},
+            {"key_id": "key2", "salt": "salt2", "iterations": 200000, "created_at": "2023-01-02T00:00:00Z"}
         ]
         
         self.file_manager.save_master_keys(master_keys)
@@ -146,7 +156,7 @@ class TestFileManager(unittest.TestCase):
     def test_read_master_keys_existing(self):
         """Test reading existing master keys."""
         master_keys = [
-            {"key_id": "key1", "salt": "salt1", "created_at": "2023-01-01T00:00:00Z"}
+            {"key_id": "key1", "salt": "salt1", "iterations": 100000, "created_at": "2023-01-01T00:00:00Z"}
         ]
         
         # Save master keys first
@@ -223,7 +233,7 @@ class TestFileManager(unittest.TestCase):
         self.file_manager.save_credential_file("test-key", credential_file)
         
         # Check that file was created
-        credential_path = self.file_manager._data_dir / "test-key.credential.json"
+        credential_path = self.file_manager.data_directory / "test-key.credential.json"
         self.assertTrue(credential_path.exists())
         
         # Check file content
@@ -262,7 +272,7 @@ class TestFileManager(unittest.TestCase):
 
     def test_read_credential_file_invalid_data(self):
         """Test reading invalid credential file data."""
-        credential_path = self.file_manager._data_dir / "test-key.credential.json"
+        credential_path = self.file_manager.data_directory / "test-key.credential.json"
         
         # Write invalid JSON
         with open(credential_path, 'w') as f:
@@ -285,7 +295,7 @@ class TestFileManager(unittest.TestCase):
         self.file_manager.save_credential_file("test-key", credential_file)
         
         # Verify file exists
-        credential_path = self.file_manager._data_dir / "test-key.credential.json"
+        credential_path = self.file_manager.data_directory / "test-key.credential.json"
         self.assertTrue(credential_path.exists())
         
         # Delete it
@@ -335,7 +345,7 @@ class TestFileManager(unittest.TestCase):
     def test_backup_files(self):
         """Test backing up files."""
         # Create some files to backup
-        master_keys = [{"key_id": "key1", "salt": "salt1", "created_at": "2023-01-01T00:00:00Z"}]
+        master_keys = [{"key_id": "key1", "salt": "salt1", "iterations": 100000, "created_at": "2023-01-01T00:00:00Z"}]
         self.file_manager.save_master_keys(master_keys)
         
         index = CredentialsIndex()
@@ -382,8 +392,8 @@ class TestFileManager(unittest.TestCase):
     def test_cleanup_temp_files(self):
         """Test cleaning up temporary files."""
         # Create some temp files
-        temp_file1 = self.file_manager._data_dir / "test1.temp"
-        temp_file2 = self.file_manager._data_dir / "test2.temp"
+        temp_file1 = self.file_manager.data_directory / "test1.temp"
+        temp_file2 = self.file_manager.data_directory / "test2.temp"
         
         with open(temp_file1, 'w') as f:
             f.write("temp1")
@@ -409,7 +419,7 @@ class TestFileManager(unittest.TestCase):
     def test_cleanup_temp_files_error(self):
         """Test cleaning up temp files with error."""
         # Create a temp file
-        temp_file = self.file_manager._data_dir / "test.temp"
+        temp_file = self.file_manager.data_directory / "test.temp"
         with open(temp_file, 'w') as f:
             f.write("temp")
         
@@ -481,7 +491,7 @@ class TestFileManager(unittest.TestCase):
 
     def test_save_master_keys_error(self):
         """Test saving master keys with error."""
-        master_keys = [{"key_id": "key1"}]
+        master_keys = [{"key_id": "key1", "salt": "salt1", "iterations": 100000, "created_at": "2023-01-01T00:00:00Z"}]
         
         # Mock _write_json_atomic to raise an exception
         with patch.object(self.file_manager, '_write_json_atomic', side_effect=FileOperationError("Write failed")):
@@ -514,7 +524,7 @@ class TestFileManager(unittest.TestCase):
 
     def test_delete_credential_file_error(self):
         """Test deleting credential file with error."""
-        credential_path = self.file_manager._data_dir / "test-key.credential.json"
+        credential_path = self.file_manager.data_directory / "test-key.credential.json"
         
         # Create the file
         with open(credential_path, 'w') as f:
@@ -528,7 +538,7 @@ class TestFileManager(unittest.TestCase):
     def test_backup_files_error(self):
         """Test backing up files with error."""
         # Create a file to backup
-        master_keys = [{"key_id": "key1"}]
+        master_keys = [{"key_id": "key1", "salt": "salt1", "iterations": 100000, "created_at": "2023-01-01T00:00:00Z"}]
         self.file_manager.save_master_keys(master_keys)
         
         backup_dir = os.path.join(self.temp_dir, "backup")
@@ -537,6 +547,35 @@ class TestFileManager(unittest.TestCase):
         with patch('shutil.copy2', side_effect=OSError("Copy failed")):
             with self.assertRaises(FileOperationError):
                 self.file_manager.backup_files(backup_dir)
+
+    def test_cleanup_expired_backups_logs_errors(self):
+        """Test that cleanup_expired_backups logs errors instead of silently ignoring them."""
+        # Create a test backup
+        backup = RotationBackup(
+            backup_id="test-backup",
+            rotation_id="test-rotation",
+            backup_type="master",
+            original_data={"test": "data"},
+            created_at=datetime.now(timezone.utc) - timedelta(days=10),
+            expires_at=datetime.now(timezone.utc) - timedelta(days=5)  # Expired
+        )
+        
+        # Save the backup
+        self.file_manager.save_rotation_backup(backup)
+        
+        # Mock the delete_rotation_backup method to raise an exception
+        with patch.object(self.file_manager, 'delete_rotation_backup', side_effect=OSError("Permission denied")):
+            # Run cleanup with error logging
+            with self.assertLogs(level=logging.WARNING) as log_context:
+                cleaned_count = self.file_manager.cleanup_expired_backups()
+            
+            # Verify that the error was logged
+            log_output = '\n'.join(log_context.output)
+            self.assertIn("Failed to delete expired backup test-backup", log_output)
+            self.assertIn("Permission denied", log_output)
+            
+            # Verify that cleanup continued and returned 0 (no successful deletions)
+            self.assertEqual(cleaned_count, 0)
 
 
 if __name__ == "__main__":

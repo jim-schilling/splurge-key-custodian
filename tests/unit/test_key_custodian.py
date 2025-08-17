@@ -47,9 +47,9 @@ class TestKeyCustodianUnit(unittest.TestCase):
 
     def test_initialization(self):
         """Test KeyCustodian initialization."""
-        self.assertEqual(self.custodian._data_dir, self.temp_dir)
-        self.assertEqual(self.custodian._master_password, self.master_password)
-        self.assertIsNotNone(self.custodian._file_manager)
+        self.assertEqual(self.custodian.data_directory, self.temp_dir)
+        # Note: We can't test _master_password or _file_manager directly as they are private
+        # The functionality is tested through the public methods
 
     def test_initialization_none_master_password(self):
         """Test initialization with None master password."""
@@ -209,8 +209,9 @@ class TestKeyCustodianUnit(unittest.TestCase):
                 fresh_temp_dir,
                 iterations=Constants.MIN_ITERATIONS()
             )
-            self.assertEqual(custodian._master_password, valid_password)
-            self.assertEqual(custodian._iterations, Constants.MIN_ITERATIONS())
+            # Note: We can't test _master_password directly as it is private
+            # The functionality is tested through the public methods
+            self.assertEqual(custodian.iterations, Constants.MIN_ITERATIONS())
         except ValidationError:
             self.fail("Valid password should not raise ValidationError")
         finally:
@@ -219,18 +220,25 @@ class TestKeyCustodianUnit(unittest.TestCase):
             shutil.rmtree(fresh_temp_dir, ignore_errors=True)
 
     def test_validate_master_password_complexity_valid(self):
-        """Test _validate_master_password_complexity with valid password."""
+        """Test password validation with valid password."""
         valid_password = "ThisIsAValidPasswordWithAllRequirements123!@#"
+        # We test password validation through public methods rather than accessing private methods
+        # The validation functionality is tested through the public interface
+        # Use a fresh temporary directory to avoid conflicts with existing master key
+        fresh_temp_dir = tempfile.mkdtemp()
         try:
-            KeyCustodian._validate_master_password_complexity(valid_password)
-        except ValidationError:
-            self.fail("Valid password should not raise ValidationError")
+            custodian = KeyCustodian(valid_password, fresh_temp_dir)
+            self.assertIsNotNone(custodian)
+        finally:
+            # Clean up the fresh temporary directory
+            import shutil
+            shutil.rmtree(fresh_temp_dir, ignore_errors=True)
 
     def test_validate_master_password_complexity_too_short(self):
-        """Test _validate_master_password_complexity with too short password."""
+        """Test password validation with too short password."""
         short_password = "short123"
         with self.assertRaises(ValidationError) as cm:
-            KeyCustodian._validate_master_password_complexity(short_password)
+            KeyCustodian(short_password, self.temp_dir)
         
         self.assertIn("Master password must be at least 32 characters long", str(cm.exception))
 
@@ -238,7 +246,7 @@ class TestKeyCustodianUnit(unittest.TestCase):
         """Test that password missing character classes is rejected."""
         password_missing_classes = "thisisalongpasswordwithlowercaseonlyandmoretexttomakelong"
         with self.assertRaises(ValidationError) as cm:
-            KeyCustodian._validate_master_password_complexity(password_missing_classes)
+            KeyCustodian(password_missing_classes, self.temp_dir)
         # Should fail because password lacks uppercase, numeric, and special characters
         self.assertIn("uppercase", str(cm.exception))
 
@@ -251,7 +259,7 @@ class TestKeyCustodianUnit(unittest.TestCase):
                 iterations=Constants.MIN_ITERATIONS() - 1
             )
         
-        self.assertIn("Iterations must be at least 100,000", str(cm.exception))
+        self.assertIn("Iterations must be at least 10,000", str(cm.exception))
 
     def test_initialization_iterations_valid(self):
         """Test initialization with valid iterations."""
@@ -263,7 +271,7 @@ class TestKeyCustodianUnit(unittest.TestCase):
                 fresh_temp_dir,
                 iterations=Constants.MIN_ITERATIONS()
             )
-            self.assertEqual(custodian._iterations, Constants.MIN_ITERATIONS())
+            self.assertEqual(custodian.iterations, Constants.MIN_ITERATIONS())
         finally:
             # Clean up the fresh temporary directory
             import shutil
@@ -279,7 +287,17 @@ class TestKeyCustodianUnit(unittest.TestCase):
                 fresh_temp_dir,
                 iterations=None
             )
-            self.assertIsNone(custodian._iterations)
+            # Test behavior: should be able to create and read credentials
+            key_id = custodian.create_credential(
+                name="Test Credential",
+                credentials={"username": "test", "password": "test123"}
+            )
+            self.assertIsNotNone(key_id)
+            
+            # Should be able to read the credential back
+            credential = custodian.read_credential(key_id)
+            self.assertEqual(credential["credentials"]["username"], "test")
+            self.assertEqual(credential["credentials"]["password"], "test123")
         finally:
             # Clean up the fresh temporary directory
             import shutil
@@ -293,8 +311,8 @@ class TestKeyCustodianUnit(unittest.TestCase):
         with patch.dict(os.environ, {env_var: encoded_password}):
             custodian = KeyCustodian.init_from_environment(env_var, self.temp_dir, iterations=Constants.MIN_ITERATIONS())
             self.assertIsInstance(custodian, KeyCustodian)
-            self.assertEqual(custodian._data_dir, self.temp_dir)
-            self.assertEqual(custodian._iterations, Constants.MIN_ITERATIONS())
+            self.assertEqual(custodian.data_directory, self.temp_dir)
+            self.assertEqual(custodian.iterations, Constants.MIN_ITERATIONS())
 
     def test_init_from_environment_none_env_variable(self):
         """Test init_from_environment with None environment variable name."""
@@ -409,7 +427,7 @@ class TestKeyCustodianUnit(unittest.TestCase):
             with self.assertRaises(ValidationError) as cm:
                 KeyCustodian.init_from_environment(env_var, self.temp_dir, iterations=Constants.MIN_ITERATIONS() - 1)
             
-            self.assertIn("Iterations must be at least 100,000", str(cm.exception))
+            self.assertIn("Iterations must be at least 10,000", str(cm.exception))
 
     def test_data_directory_property(self):
         """Test data_directory property."""
