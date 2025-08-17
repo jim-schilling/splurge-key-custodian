@@ -69,8 +69,8 @@ def validate_credential_name(name: str) -> None:
         raise ValidationError("Credential name cannot contain only whitespace")
 
     # Check for reasonable length limits
-    if len(name) > 1000:  # Arbitrary reasonable limit
-        raise ValidationError("Credential name is too long (maximum 1000 characters)")
+    if len(name) > Constants.MAX_CREDENTIAL_NAME_LENGTH():  
+        raise ValidationError(f"Credential name is too long (maximum {Constants.MAX_CREDENTIAL_NAME_LENGTH()} characters)")
 
     # Check for null bytes or other problematic characters
     if '\x00' in name:

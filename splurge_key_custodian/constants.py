@@ -21,11 +21,16 @@ class Constants:
     _ALLOWABLE_ALPHA_LOWER: str = "abcdefghijklmnopqrstuvwxyz"
     _ALLOWABLE_DIGITS: str = "0123456789"
     _ALLOWABLE_SPECIAL: str = '!@#$%^&*_+-=[],.?;'
+    _MAX_CREDENTIAL_NAME_LENGTH: int = 256
 
     # Key rotation policy
     _MAX_ROTATION_HISTORY: int = 10  # Maximum number of rotation history entries to keep
     _BACKUP_RETENTION_DAYS: int = 30  # Days to keep rotation backups
     _ROTATION_BATCH_SIZE: int = 50  # Number of credentials to rotate in a batch
+
+    @classmethod
+    def MAX_CREDENTIAL_NAME_LENGTH(cls) -> int:
+        return cls._MAX_CREDENTIAL_NAME_LENGTH
 
     @classmethod
     def ALLOWABLE_ALPHA_UPPER(cls) -> str:

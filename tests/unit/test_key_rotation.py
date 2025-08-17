@@ -17,6 +17,7 @@ from splurge_key_custodian.exceptions import (
     RotationBackupError,
     RotationHistoryError,
     RotationRollbackError,
+    ValidationError,
 )
 from splurge_key_custodian.file_manager import FileManager
 from splurge_key_custodian.key_custodian import KeyCustodian
@@ -554,7 +555,7 @@ class TestKeyRotationManagerBehavior:
         rotation_manager = KeyRotationManager(custodian._file_manager)
         
         # Create credential with very long name
-        long_name = "A" * 1000  # 1000 character name
+        long_name = "A" * Constants.MAX_CREDENTIAL_NAME_LENGTH()
         custodian.create_credential(
             name=long_name,
             credentials={"username": "user", "password": "pass"}
@@ -607,5 +608,21 @@ class TestKeyRotationManagerBehavior:
         credential_data = custodian.read_credential(credentials[0]['key_id'])
         assert credential_data['credentials'] == unicode_credentials
 
-
-
+    def test_create_credential_with_name_exceeding_max_length(self, temp_dir, master_password):
+        """Test that creating a credential with a name exceeding max length raises ValidationError."""
+        custodian = KeyCustodian(master_password, temp_dir)
+        
+        # Create a name that exceeds the maximum length
+        overly_long_name = "A" * (Constants.MAX_CREDENTIAL_NAME_LENGTH() + 1)
+        
+        # Attempt to create credential with overly long name should raise ValidationError
+        with pytest.raises(ValidationError) as exc_info:
+            custodian.create_credential(
+                name=overly_long_name,
+                credentials={"username": "user", "password": "pass"}
+            )
+        
+        # Verify the error message contains the expected content
+        error_message = str(exc_info.value)
+        assert "Credential name is too long" in error_message
+        assert str(Constants.MAX_CREDENTIAL_NAME_LENGTH()) in error_message
