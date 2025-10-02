@@ -13,6 +13,18 @@ class KeyRotationError(KeyCustodianError):
     """Raised when key rotation fails."""
 
 
+class RotationBackupError(KeyCustodianError):
+    """Raised when rotation backup operations fail."""
+
+
+class RotationRollbackError(KeyCustodianError):
+    """Raised when rotation rollback operations fail."""
+
+
+class RotationHistoryError(KeyCustodianError):
+    """Raised when rotation history operations fail."""
+
+
 class FileOperationError(KeyCustodianError):
     """Raised when file operations fail."""
 

@@ -1,57 +1,64 @@
 """Tests for the models module."""
 
-import unittest
 from datetime import datetime, timezone
-from typing import Dict, Any
+from typing import Any, Dict
 
-from splurge_key_custodian.models import CredentialData, Credential, KeyCustodianData, MasterKey, CredentialFile, CredentialsIndex
+import pytest
+from splurge_key_custodian.models import (
+    Credential,
+    CredentialData,
+    CredentialFile,
+    CredentialsIndex,
+    KeyCustodianData,
+    MasterKey,
+)
 
 
-class TestCredentialData(unittest.TestCase):
+class TestCredentialData:
     """Test cases for the CredentialData class."""
 
     def test_credential_data_creation(self):
         """Test CredentialData creation with default values."""
         data = CredentialData()
-        
-        self.assertEqual(data.credentials, {})
-        self.assertEqual(data.meta_data, {})
+
+        assert data.credentials == {}
+        assert data.meta_data == {}
 
     def test_credential_data_with_data(self):
         """Test CredentialData creation with data."""
         credentials = {"username": "test", "password": "secret"}
         meta_data = {"service": "test-service"}
-        
+
         data = CredentialData(credentials=credentials, meta_data=meta_data)
-        
-        self.assertEqual(data.credentials, credentials)
-        self.assertEqual(data.meta_data, meta_data)
+
+        assert data.credentials == credentials
+        assert data.meta_data == meta_data
 
     def test_credential_data_to_dict(self):
         """Test CredentialData to_dict method."""
         credentials = {"username": "test", "password": "secret"}
         meta_data = {"service": "test-service"}
-        
+
         data = CredentialData(credentials=credentials, meta_data=meta_data)
         result = data.to_dict()
-        
-        self.assertEqual(result["credentials"], credentials)
-        self.assertEqual(result["meta_data"], meta_data)
+
+        assert result["credentials"] == credentials
+        assert result["meta_data"] == meta_data
 
     def test_credential_data_from_dict(self):
         """Test CredentialData from_dict method."""
         input_data = {
             "credentials": {"username": "test", "password": "secret"},
-            "meta_data": {"service": "test-service"}
+            "meta_data": {"service": "test-service"},
         }
-        
+
         data = CredentialData.from_dict(input_data)
-        
-        self.assertEqual(data.credentials, input_data["credentials"])
-        self.assertEqual(data.meta_data, input_data["meta_data"])
+
+        assert data.credentials == input_data["credentials"]
+        assert data.meta_data == input_data["meta_data"]
 
 
-class TestCredential(unittest.TestCase):
+class TestCredential:
     """Test cases for the Credential class."""
 
     def test_credential_creation(self):
@@ -60,14 +67,14 @@ class TestCredential(unittest.TestCase):
             key_id="test-key-123",
             name="Test Credential",
             salt="test-salt",
-            data="encrypted-data"
+            data="encrypted-data",
         )
-        
-        self.assertEqual(credential.key_id, "test-key-123")
-        self.assertEqual(credential.name, "Test Credential")
-        self.assertEqual(credential.salt, "test-salt")
-        self.assertEqual(credential.data, "encrypted-data")
-        self.assertIsInstance(credential.created_at, datetime)
+
+        assert credential.key_id == "test-key-123"
+        assert credential.name == "Test Credential"
+        assert credential.salt == "test-salt"
+        assert credential.data == "encrypted-data"
+        assert isinstance(credential.created_at, datetime)
 
     def test_credential_with_datetime(self):
         """Test Credential creation with specific datetime."""
@@ -77,10 +84,10 @@ class TestCredential(unittest.TestCase):
             name="Test Credential",
             salt="test-salt",
             data="encrypted-data",
-            created_at=created_at
+            created_at=created_at,
         )
-        
-        self.assertEqual(credential.created_at, created_at)
+
+        assert credential.created_at == created_at
 
     def test_credential_datetime_parsing(self):
         """Test datetime string parsing in Credential."""
@@ -89,28 +96,28 @@ class TestCredential(unittest.TestCase):
             name="Test Credential",
             salt="test-salt",
             data="encrypted-data",
-            created_at="2023-01-01T12:00:00+00:00"
+            created_at="2023-01-01T12:00:00+00:00",
         )
-        
-        self.assertIsInstance(credential.created_at, datetime)
-        self.assertEqual(credential.created_at.year, 2023)
+
+        assert isinstance(credential.created_at, datetime)
+        assert credential.created_at.year == 2023
 
     def test_credential_validation(self):
         """Test Credential validation."""
         # Test empty key_id
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             Credential(key_id="", name="Test", salt="salt", data="data")
-        
+
         # Test empty name
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             Credential(key_id="test", name="", salt="salt", data="data")
-        
+
         # Test empty salt
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             Credential(key_id="test", name="Test", salt="", data="data")
-        
+
         # Test empty data
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             Credential(key_id="test", name="Test", salt="salt", data="")
 
     def test_credential_to_dict(self):
@@ -121,16 +128,16 @@ class TestCredential(unittest.TestCase):
             name="Test Credential",
             salt="test-salt",
             data="encrypted-data",
-            created_at=created_at
+            created_at=created_at,
         )
-        
+
         result = credential.to_dict()
-        
-        self.assertEqual(result["key_id"], "test-key")
-        self.assertEqual(result["name"], "Test Credential")
-        self.assertEqual(result["salt"], "test-salt")
-        self.assertEqual(result["data"], "encrypted-data")
-        self.assertEqual(result["created_at"], created_at.isoformat())
+
+        assert result["key_id"] == "test-key"
+        assert result["name"] == "Test Credential"
+        assert result["salt"] == "test-salt"
+        assert result["data"] == "encrypted-data"
+        assert result["created_at"] == created_at.isoformat()
 
     def test_credential_from_dict(self):
         """Test Credential from_dict method."""
@@ -139,29 +146,29 @@ class TestCredential(unittest.TestCase):
             "name": "Test Credential",
             "salt": "test-salt",
             "data": "encrypted-data",
-            "created_at": "2023-01-01T12:00:00+00:00"
+            "created_at": "2023-01-01T12:00:00+00:00",
         }
-        
+
         credential = Credential.from_dict(input_data)
-        
-        self.assertEqual(credential.key_id, "test-key")
-        self.assertEqual(credential.name, "Test Credential")
-        self.assertEqual(credential.salt, "test-salt")
-        self.assertEqual(credential.data, "encrypted-data")
-        self.assertIsInstance(credential.created_at, datetime)
+
+        assert credential.key_id == "test-key"
+        assert credential.name == "Test Credential"
+        assert credential.salt == "test-salt"
+        assert credential.data == "encrypted-data"
+        assert isinstance(credential.created_at, datetime)
 
 
-class TestKeyCustodianData(unittest.TestCase):
+class TestKeyCustodianData:
     """Test cases for the KeyCustodianData class."""
 
     def test_key_custodian_data_creation(self):
         """Test KeyCustodianData creation with required fields."""
         data = KeyCustodianData(master_key_id="master-key-123")
-        
-        self.assertEqual(data.master_key_id, "master-key-123")
-        self.assertEqual(data.credentials, [])
-        self.assertIsInstance(data.last_updated, datetime)
-        self.assertEqual(data.version, "2.0")
+
+        assert data.master_key_id == "master-key-123"
+        assert data.credentials == []
+        assert isinstance(data.last_updated, datetime)
+        assert data.version == "2.0"
 
     def test_key_custodian_data_with_credentials(self):
         """Test KeyCustodianData creation with credentials."""
@@ -169,20 +176,19 @@ class TestKeyCustodianData(unittest.TestCase):
             key_id="test-key",
             name="Test Credential",
             salt="test-salt",
-            data="encrypted-data"
+            data="encrypted-data",
         )
-        
+
         data = KeyCustodianData(
-            master_key_id="master-key-123",
-            credentials=[credential]
+            master_key_id="master-key-123", credentials=[credential]
         )
-        
-        self.assertEqual(len(data.credentials), 1)
-        self.assertEqual(data.credentials[0], credential)
+
+        assert len(data.credentials) == 1
+        assert data.credentials[0] == credential
 
     def test_key_custodian_data_validation(self):
         """Test KeyCustodianData validation."""
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             KeyCustodianData(master_key_id="")
 
     def test_key_custodian_data_to_dict(self):
@@ -191,20 +197,19 @@ class TestKeyCustodianData(unittest.TestCase):
             key_id="test-key",
             name="Test Credential",
             salt="test-salt",
-            data="encrypted-data"
+            data="encrypted-data",
         )
-        
+
         data = KeyCustodianData(
-            master_key_id="master-key-123",
-            credentials=[credential]
+            master_key_id="master-key-123", credentials=[credential]
         )
-        
+
         result = data.to_dict()
-        
-        self.assertEqual(result["master_key_id"], "master-key-123")
-        self.assertEqual(len(result["credentials"]), 1)
-        self.assertEqual(result["credentials"][0]["key_id"], "test-key")
-        self.assertEqual(result["version"], "2.0")
+
+        assert result["master_key_id"] == "master-key-123"
+        assert len(result["credentials"]) == 1
+        assert result["credentials"][0]["key_id"] == "test-key"
+        assert result["version"] == "2.0"
 
     def test_key_custodian_data_from_dict(self):
         """Test KeyCustodianData from_dict method."""
@@ -216,31 +221,30 @@ class TestKeyCustodianData(unittest.TestCase):
                     "name": "Test Credential",
                     "salt": "test-salt",
                     "data": "encrypted-data",
-                    "created_at": "2023-01-01T12:00:00+00:00"
+                    "created_at": "2023-01-01T12:00:00+00:00",
                 }
             ],
-            "version": "2.0"
+            "version": "2.0",
         }
-        
+
         data = KeyCustodianData.from_dict(input_data)
-        
-        self.assertEqual(data.master_key_id, "master-key-123")
-        self.assertEqual(len(data.credentials), 1)
-        self.assertEqual(data.credentials[0].key_id, "test-key")
-        self.assertEqual(data.version, "2.0")
+
+        assert data.master_key_id == "master-key-123"
+        assert len(data.credentials) == 1
+        assert data.credentials[0].key_id == "test-key"
+        assert data.version == "2.0"
 
     def test_key_custodian_data_datetime_parsing(self):
         """Test datetime string parsing in KeyCustodianData."""
         data = KeyCustodianData(
-            master_key_id="master-key-123",
-            last_updated="2023-01-01T12:00:00+00:00"
+            master_key_id="master-key-123", last_updated="2023-01-01T12:00:00+00:00"
         )
-        
-        self.assertIsInstance(data.last_updated, datetime)
-        self.assertEqual(data.last_updated.year, 2023)
+
+        assert isinstance(data.last_updated, datetime)
+        assert data.last_updated.year == 2023
 
 
-class TestMasterKey(unittest.TestCase):
+class TestMasterKey:
     """Test cases for the MasterKey class."""
 
     def test_master_key_creation(self):
@@ -248,13 +252,15 @@ class TestMasterKey(unittest.TestCase):
         master_key = MasterKey(
             key_id="master-key-123",
             credentials="encrypted-credentials",
-            salt="master-salt"
+            salt="master-salt",
+            iterations=100000,
         )
-        
-        self.assertEqual(master_key.key_id, "master-key-123")
-        self.assertEqual(master_key.credentials, "encrypted-credentials")
-        self.assertEqual(master_key.salt, "master-salt")
-        self.assertIsInstance(master_key.created_at, datetime)
+
+        assert master_key.key_id == "master-key-123"
+        assert master_key.credentials == "encrypted-credentials"
+        assert master_key.salt == "master-salt"
+        assert master_key.iterations == 100000
+        assert isinstance(master_key.created_at, datetime)
 
     def test_master_key_with_datetime(self):
         """Test MasterKey creation with specific datetime."""
@@ -263,10 +269,11 @@ class TestMasterKey(unittest.TestCase):
             key_id="master-key-456",
             credentials="encrypted-credentials",
             salt="master-salt",
-            created_at=created_at
+            iterations=200000,
+            created_at=created_at,
         )
-        
-        self.assertEqual(master_key.created_at, created_at)
+
+        assert master_key.created_at == created_at
 
     def test_master_key_datetime_parsing(self):
         """Test datetime string parsing in MasterKey."""
@@ -274,25 +281,26 @@ class TestMasterKey(unittest.TestCase):
             key_id="master-key",
             credentials="encrypted-credentials",
             salt="master-salt",
-            created_at="2023-01-01T12:00:00+00:00"
+            iterations=150000,
+            created_at="2023-01-01T12:00:00+00:00",
         )
-        
-        self.assertIsInstance(master_key.created_at, datetime)
-        self.assertEqual(master_key.created_at.year, 2023)
+
+        assert isinstance(master_key.created_at, datetime)
+        assert master_key.created_at.year == 2023
 
     def test_master_key_validation(self):
         """Test MasterKey validation."""
         # Test empty key_id
-        with self.assertRaises(ValueError):
-            MasterKey(key_id="", credentials="creds", salt="salt")
-        
+        with pytest.raises(ValueError):
+            MasterKey(key_id="", credentials="creds", salt="salt", iterations=100000)
+
         # Test empty credentials
-        with self.assertRaises(ValueError):
-            MasterKey(key_id="test", credentials="", salt="salt")
-        
+        with pytest.raises(ValueError):
+            MasterKey(key_id="test", credentials="", salt="salt", iterations=100000)
+
         # Test empty salt
-        with self.assertRaises(ValueError):
-            MasterKey(key_id="test", credentials="creds", salt="")
+        with pytest.raises(ValueError):
+            MasterKey(key_id="test", credentials="creds", salt="", iterations=100000)
 
     def test_master_key_to_dict(self):
         """Test MasterKey to_dict method."""
@@ -301,93 +309,116 @@ class TestMasterKey(unittest.TestCase):
             key_id="master-key",
             credentials="encrypted-credentials",
             salt="master-salt",
-            created_at=created_at
+            iterations=300000,
+            created_at=created_at,
         )
-        
+
         result = master_key.to_dict()
-        
-        self.assertEqual(result["key_id"], "master-key")
-        self.assertEqual(result["credentials"], "encrypted-credentials")
-        self.assertEqual(result["salt"], "master-salt")
-        self.assertEqual(result["created_at"], created_at.isoformat())
+
+        assert result["key_id"] == "master-key"
+        assert result["credentials"] == "encrypted-credentials"
+        assert result["salt"] == "master-salt"
+        assert result["iterations"] == 300000
+        assert result["created_at"] == created_at.isoformat()
+
+    def test_master_key_from_dict(self):
+        """Test MasterKey from_dict method."""
+        # Test with all fields including iterations
+        data = {
+            "key_id": "test-key",
+            "credentials": "encrypted-creds",
+            "salt": "test-salt",
+            "iterations": 500000,
+            "created_at": "2023-01-01T12:00:00+00:00",
+        }
+
+        master_key = MasterKey.from_dict(data)
+
+        assert master_key.key_id == "test-key"
+        assert master_key.credentials == "encrypted-creds"
+        assert master_key.salt == "test-salt"
+        assert master_key.iterations == 500000
+        assert isinstance(master_key.created_at, datetime)
+
+    def test_master_key_from_dict_backward_compatibility(self):
+        """Test MasterKey from_dict method with backward compatibility (no iterations field)."""
+        # Test with data missing iterations field (backward compatibility)
+        data = {
+            "key_id": "test-key",
+            "credentials": "encrypted-creds",
+            "salt": "test-salt",
+            "created_at": "2023-01-01T12:00:00+00:00",
+        }
+
+        master_key = MasterKey.from_dict(data)
+
+        assert master_key.key_id == "test-key"
+        assert master_key.credentials == "encrypted-creds"
+        assert master_key.salt == "test-salt"
+        assert (
+            master_key.iterations is None
+        )  # Should be None for backward compatibility
+        assert isinstance(master_key.created_at, datetime)
 
 
-class TestCredentialFile(unittest.TestCase):
+class TestCredentialFile:
     """Test cases for the CredentialFile class."""
 
     def test_credential_file_creation(self):
         """Test CredentialFile creation."""
         cred_file = CredentialFile(
-            key_id="test-id",
-            name="test-name",
-            salt="test-salt",
-            data="test-data"
+            key_id="test-id", name="test-name", salt="test-salt", data="test-data"
         )
-        
-        self.assertEqual(cred_file.key_id, "test-id")
-        self.assertEqual(cred_file.name, "test-name")
-        self.assertEqual(cred_file.salt, "test-salt")
-        self.assertEqual(cred_file.data, "test-data")
-        self.assertIsInstance(cred_file.created_at, datetime)
+
+        assert cred_file.key_id == "test-id"
+        assert cred_file.name == "test-name"
+        assert cred_file.salt == "test-salt"
+        assert cred_file.data == "test-data"
+        assert isinstance(cred_file.created_at, datetime)
 
     def test_credential_file_validation_errors(self):
         """Test CredentialFile validation errors."""
         # Test empty key_id
-        with self.assertRaises(ValueError) as cm:
+        with pytest.raises(ValueError) as cm:
             CredentialFile(
-                key_id="",
-                name="test-name",
-                salt="test-salt",
-                data="test-data"
+                key_id="", name="test-name", salt="test-salt", data="test-data"
             )
-        self.assertIn("key_id cannot be empty", str(cm.exception))
-        
+        assert "key_id cannot be empty" in str(cm.value)
+
         # Test empty name
-        with self.assertRaises(ValueError) as cm:
+        with pytest.raises(ValueError) as cm:
             CredentialFile(
-                key_id="test-id",
-                name="",
-                salt="test-salt",
-                data="test-data"
+                key_id="test-id", name="", salt="test-salt", data="test-data"
             )
-        self.assertIn("name cannot be empty", str(cm.exception))
-        
+        assert "name cannot be empty" in str(cm.value)
+
         # Test empty salt
-        with self.assertRaises(ValueError) as cm:
+        with pytest.raises(ValueError) as cm:
             CredentialFile(
-                key_id="test-id",
-                name="test-name",
-                salt="",
-                data="test-data"
+                key_id="test-id", name="test-name", salt="", data="test-data"
             )
-        self.assertIn("salt cannot be empty", str(cm.exception))
-        
+        assert "salt cannot be empty" in str(cm.value)
+
         # Test empty data
-        with self.assertRaises(ValueError) as cm:
+        with pytest.raises(ValueError) as cm:
             CredentialFile(
-                key_id="test-id",
-                name="test-name",
-                salt="test-salt",
-                data=""
+                key_id="test-id", name="test-name", salt="test-salt", data=""
             )
-        self.assertIn("data cannot be empty", str(cm.exception))
+        assert "data cannot be empty" in str(cm.value)
 
     def test_credential_file_to_dict(self):
         """Test CredentialFile to_dict method."""
         cred_file = CredentialFile(
-            key_id="test-id",
-            name="test-name",
-            salt="test-salt",
-            data="test-data"
+            key_id="test-id", name="test-name", salt="test-salt", data="test-data"
         )
-        
+
         result = cred_file.to_dict()
-        
-        self.assertEqual(result["key_id"], "test-id")
-        self.assertEqual(result["name"], "test-name")
-        self.assertEqual(result["salt"], "test-salt")
-        self.assertEqual(result["data"], "test-data")
-        self.assertIn("created_at", result)
+
+        assert result["key_id"] == "test-id"
+        assert result["name"] == "test-name"
+        assert result["salt"] == "test-salt"
+        assert result["data"] == "test-data"
+        assert "created_at" in result
 
     def test_credential_file_from_dict(self):
         """Test CredentialFile from_dict method."""
@@ -396,107 +427,103 @@ class TestCredentialFile(unittest.TestCase):
             "name": "test-name",
             "salt": "test-salt",
             "data": "test-data",
-            "created_at": "2023-01-01T12:00:00+00:00"
+            "created_at": "2023-01-01T12:00:00+00:00",
         }
-        
+
         cred_file = CredentialFile.from_dict(data)
-        
-        self.assertEqual(cred_file.key_id, "test-id")
-        self.assertEqual(cred_file.name, "test-name")
-        self.assertEqual(cred_file.salt, "test-salt")
-        self.assertEqual(cred_file.data, "test-data")
-        self.assertIsInstance(cred_file.created_at, datetime)
+
+        assert cred_file.key_id == "test-id"
+        assert cred_file.name == "test-name"
+        assert cred_file.salt == "test-salt"
+        assert cred_file.data == "test-data"
+        assert isinstance(cred_file.created_at, datetime)
 
 
-class TestCredentialsIndex(unittest.TestCase):
+class TestCredentialsIndex:
     """Test cases for the CredentialsIndex class."""
 
     def test_credentials_index_creation(self):
         """Test CredentialsIndex creation."""
         index = CredentialsIndex()
-        
-        self.assertEqual(index.credentials, {})
-        self.assertIsInstance(index.last_updated, datetime)
+
+        assert index.credentials == {}
+        assert isinstance(index.last_updated, datetime)
 
     def test_credentials_index_methods(self):
         """Test CredentialsIndex methods."""
         index = CredentialsIndex()
-        
+
         # Test add_credential
         index.add_credential("key1", "name1")
-        self.assertEqual(index.credentials["key1"], "name1")
-        
+        assert index.credentials["key1"] == "name1"
+
         # Test remove_credential
         index.remove_credential("key1")
-        self.assertNotIn("key1", index.credentials)
-        
+        assert "key1" not in index.credentials
+
         # Test remove_credential with non-existent key
         index.remove_credential("non-existent")
         # Should not raise an error
-        
+
         # Test get_name
         index.add_credential("key2", "name2")
-        self.assertEqual(index.get_name("key2"), "name2")
-        self.assertIsNone(index.get_name("non-existent"))
-        
+        assert index.get_name("key2") == "name2"
+        assert index.get_name("non-existent") is None
+
         # Test get_key_id
-        self.assertEqual(index.get_key_id("name2"), "key2")
-        self.assertIsNone(index.get_key_id("non-existent"))
-        
+        assert index.get_key_id("name2") == "key2"
+        assert index.get_key_id("non-existent") is None
+
         # Test has_name
-        self.assertTrue(index.has_name("name2"))
-        self.assertFalse(index.has_name("non-existent"))
+        assert index.has_name("name2")
+        assert not index.has_name("non-existent")
 
     def test_credentials_index_to_dict(self):
         """Test CredentialsIndex to_dict method."""
         index = CredentialsIndex()
         index.add_credential("key1", "name1")
-        
+
         result = index.to_dict()
-        
-        self.assertEqual(result["credentials"], {"key1": "name1"})
-        self.assertIn("last_updated", result)
+
+        assert result["credentials"] == {"key1": "name1"}
+        assert "last_updated" in result
 
     def test_credentials_index_from_dict_with_defaults(self):
         """Test CredentialsIndex from_dict with default values."""
         # Test with minimal data
         data = {}
         index = CredentialsIndex.from_dict(data)
-        self.assertEqual(index.credentials, {})
-        self.assertIsInstance(index.last_updated, datetime)
+        assert index.credentials == {}
+        assert isinstance(index.last_updated, datetime)
 
     def test_credentials_index_from_dict_with_data(self):
         """Test CredentialsIndex from_dict with data."""
         data = {
             "credentials": {"key1": "name1", "key2": "name2"},
-            "last_updated": "2023-01-01T12:00:00+00:00"
+            "last_updated": "2023-01-01T12:00:00+00:00",
         }
-        
+
         index = CredentialsIndex.from_dict(data)
-        
-        self.assertEqual(index.credentials, {"key1": "name1", "key2": "name2"})
-        self.assertIsInstance(index.last_updated, datetime)
+
+        assert index.credentials == {"key1": "name1", "key2": "name2"}
+        assert isinstance(index.last_updated, datetime)
 
     def test_credentials_index_from_dict_rebuilds_name_mapping(self):
         """Test that CredentialsIndex from_dict properly rebuilds the _name_to_key_id mapping."""
         data = {
             "credentials": {"key1": "name1", "key2": "name2", "key3": "name3"},
-            "last_updated": "2023-01-01T12:00:00+00:00"
+            "last_updated": "2023-01-01T12:00:00+00:00",
         }
-        
+
         index = CredentialsIndex.from_dict(data)
-        
+
         # Verify the reverse mapping is properly built
-        self.assertEqual(index.get_key_id("name1"), "key1")
-        self.assertEqual(index.get_key_id("name2"), "key2")
-        self.assertEqual(index.get_key_id("name3"), "key3")
-        
+        assert index.get_key_id("name1") == "key1"
+        assert index.get_key_id("name2") == "key2"
+        assert index.get_key_id("name3") == "key3"
+
         # Verify has_name works correctly
-        self.assertTrue(index.has_name("name1"))
-        self.assertTrue(index.has_name("name2"))
-        self.assertTrue(index.has_name("name3"))
-        self.assertFalse(index.has_name("non-existent"))
-
-
-if __name__ == '__main__':
-    unittest.main(verbosity=2) 
+        assert index.has_name("name1")
+        assert index.has_name("name2")
+        assert index.has_name("name3")
+        assert not index.has_name("non-existent")
