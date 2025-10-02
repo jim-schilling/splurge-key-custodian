@@ -170,7 +170,7 @@ class CryptoUtils:
 
     @staticmethod
     def encrypt_with_fernet(key: bytes, data: bytes) -> bytes:
-        """Encrypt data using Fernet (AES-128-CBC with HMAC-SHA256).
+        """Encrypt data using Fernet (AES-256-CBC with HMAC-SHA256).
 
         Args:
             key: Encryption key (32 bytes)

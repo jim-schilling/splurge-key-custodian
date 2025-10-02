@@ -9,7 +9,6 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
-
 from splurge_key_custodian.exceptions import (
     FileOperationError,
     RotationBackupError,
@@ -47,15 +46,15 @@ class TestFileManagerRotation:
             new_master_key_id=str(uuid.uuid4()),
             affected_credentials=["cred1", "cred2"],
             created_at=datetime.now(timezone.utc),
-            metadata={"test": "data"}
+            metadata={"test": "data"},
         )
-        
+
         # Save rotation history (expects a list)
         file_manager.save_rotation_history([history_entry])
-        
+
         # Read rotation history
         history = file_manager.read_rotation_history()
-        
+
         # Verify history was saved and read correctly
         assert len(history) == 1
         saved_entry = history[0]
@@ -72,24 +71,24 @@ class TestFileManagerRotation:
         # Create test rotation backup
         backup_data = {
             "master_keys": [{"key_id": "test-key", "salt": "test-salt"}],
-            "credentials": [{"key_id": "cred1", "name": "Test Credential"}]
+            "credentials": [{"key_id": "cred1", "name": "Test Credential"}],
         }
-        
+
         backup = RotationBackup(
             backup_id=str(uuid.uuid4()),
             rotation_id=str(uuid.uuid4()),
             backup_type="master",
             original_data=backup_data,
             created_at=datetime.now(timezone.utc),
-            expires_at=datetime.now(timezone.utc) + timedelta(days=30)
+            expires_at=datetime.now(timezone.utc) + timedelta(days=30),
         )
-        
+
         # Save rotation backup
         file_manager.save_rotation_backup(backup)
-        
+
         # Read rotation backup
         read_backup = file_manager.read_rotation_backup(backup.backup_id)
-        
+
         # Verify backup was saved and read correctly
         assert read_backup.backup_id == backup.backup_id
         assert read_backup.rotation_id == backup.rotation_id
@@ -106,25 +105,25 @@ class TestFileManagerRotation:
             backup_type="master",
             original_data={"test": "data1"},
             created_at=datetime.now(timezone.utc),
-            expires_at=datetime.now(timezone.utc) + timedelta(days=30)
+            expires_at=datetime.now(timezone.utc) + timedelta(days=30),
         )
-        
+
         backup2 = RotationBackup(
             backup_id=str(uuid.uuid4()),
             rotation_id=str(uuid.uuid4()),
             backup_type="bulk",
             original_data={"test": "data2"},
             created_at=datetime.now(timezone.utc),
-            expires_at=datetime.now(timezone.utc) + timedelta(days=30)
+            expires_at=datetime.now(timezone.utc) + timedelta(days=30),
         )
-        
+
         # Save backups
         file_manager.save_rotation_backup(backup1)
         file_manager.save_rotation_backup(backup2)
-        
+
         # List backups (returns backup IDs, not objects)
         backup_ids = file_manager.list_rotation_backups()
-        
+
         # Verify all backups are listed
         assert len(backup_ids) == 2
         assert backup1.backup_id in backup_ids
@@ -139,19 +138,19 @@ class TestFileManagerRotation:
             backup_type="master",
             original_data={"test": "data"},
             created_at=datetime.now(timezone.utc),
-            expires_at=datetime.now(timezone.utc) + timedelta(days=30)
+            expires_at=datetime.now(timezone.utc) + timedelta(days=30),
         )
-        
+
         # Save backup
         file_manager.save_rotation_backup(backup)
-        
+
         # Verify backup exists
         backup_ids = file_manager.list_rotation_backups()
         assert len(backup_ids) == 1
-        
+
         # Delete backup
         file_manager.delete_rotation_backup(backup.backup_id)
-        
+
         # Verify backup was deleted
         backup_ids = file_manager.list_rotation_backups()
         assert len(backup_ids) == 0
@@ -165,9 +164,9 @@ class TestFileManagerRotation:
             backup_type="master",
             original_data={"test": "data"},
             created_at=datetime.now(timezone.utc) - timedelta(days=10),
-            expires_at=datetime.now(timezone.utc) - timedelta(days=5)  # Expired
+            expires_at=datetime.now(timezone.utc) - timedelta(days=5),  # Expired
         )
-        
+
         # Create valid backup
         valid_backup = RotationBackup(
             backup_id=str(uuid.uuid4()),
@@ -175,20 +174,20 @@ class TestFileManagerRotation:
             backup_type="bulk",
             original_data={"test": "data"},
             created_at=datetime.now(timezone.utc),
-            expires_at=datetime.now(timezone.utc) + timedelta(days=30)  # Not expired
+            expires_at=datetime.now(timezone.utc) + timedelta(days=30),  # Not expired
         )
-        
+
         # Save both backups
         file_manager.save_rotation_backup(expired_backup)
         file_manager.save_rotation_backup(valid_backup)
-        
+
         # Verify both backups exist
         backup_ids = file_manager.list_rotation_backups()
         assert len(backup_ids) == 2
-        
+
         # Cleanup expired backups
         cleaned_count = file_manager.cleanup_expired_backups()
-        
+
         # Verify only expired backup was removed
         assert cleaned_count == 1
         remaining_backup_ids = file_manager.list_rotation_backups()
@@ -204,9 +203,9 @@ class TestFileManagerRotation:
             backup_type="master",
             original_data={"test": "data"},
             created_at=datetime.now(timezone.utc),
-            expires_at=datetime.now(timezone.utc) - timedelta(days=1)  # Expired
+            expires_at=datetime.now(timezone.utc) - timedelta(days=1),  # Expired
         )
-        
+
         # Create valid backup
         valid_backup = RotationBackup(
             backup_id=str(uuid.uuid4()),
@@ -214,16 +213,18 @@ class TestFileManagerRotation:
             backup_type="bulk",
             original_data={"test": "data"},
             created_at=datetime.now(timezone.utc),
-            expires_at=datetime.now(timezone.utc) + timedelta(days=1)  # Not expired
+            expires_at=datetime.now(timezone.utc) + timedelta(days=1),  # Not expired
         )
-        
+
         # Check expiration
         assert expired_backup.is_expired()
         assert not valid_backup.is_expired()
 
     def test_rotation_history_file_path_property(self, file_manager):
         """Test rotation history file path property."""
-        expected_path = Path(file_manager.data_directory) / "key-custodian-rotation-history.json"
+        expected_path = (
+            Path(file_manager.data_directory) / "key-custodian-rotation-history.json"
+        )
         assert file_manager.rotation_history_file_path == expected_path
 
     def test_backups_directory_property(self, file_manager):
@@ -237,13 +238,15 @@ class TestFileManagerRotation:
         backups_dir = file_manager.backups_directory
         if backups_dir.exists():
             import shutil
+
             shutil.rmtree(backups_dir)
-        
+
         # Ensure data directory by calling a public method that creates it
         # We test the behavior through public methods rather than accessing private methods
+        from datetime import datetime, timedelta, timezone
+
         from splurge_key_custodian.models import RotationBackup
-        from datetime import datetime, timezone, timedelta
-        
+
         # Create a dummy backup to trigger creation of backups directory
         dummy_backup = RotationBackup(
             backup_id="test",
@@ -251,10 +254,12 @@ class TestFileManagerRotation:
             backup_type="master",
             original_data={"test": "data"},
             created_at=datetime.now(timezone.utc),
-            expires_at=datetime.now(timezone.utc) + timedelta(days=30)
+            expires_at=datetime.now(timezone.utc) + timedelta(days=30),
         )
-        file_manager.save_rotation_backup(dummy_backup)  # This will create the backups directory
-        
+        file_manager.save_rotation_backup(
+            dummy_backup
+        )  # This will create the backups directory
+
         # Verify backups directory was created
         assert backups_dir.exists()
         assert backups_dir.is_dir()
@@ -270,35 +275,36 @@ class TestFileManagerRotation:
             new_master_key_id=str(uuid.uuid4()),
             affected_credentials=[],
             created_at=datetime.now(timezone.utc),
-            metadata={}
+            metadata={},
         )
         file_manager.save_rotation_history([history_entry])
-        
+
         backup = RotationBackup(
             backup_id=str(uuid.uuid4()),
             rotation_id=str(uuid.uuid4()),
             backup_type="master",
             original_data={"test": "data"},
             created_at=datetime.now(timezone.utc),
-            expires_at=datetime.now(timezone.utc) + timedelta(days=30)
+            expires_at=datetime.now(timezone.utc) + timedelta(days=30),
         )
         file_manager.save_rotation_backup(backup)
-        
+
         # Create a dummy credential file to ensure backup has content
         from splurge_key_custodian.models import CredentialFile
+
         dummy_credential = CredentialFile(
             key_id="test",
             name="Test Credential",
             salt="test-salt",
             data="test-data",
-            rotation_version=1
+            rotation_version=1,
         )
         file_manager.save_credential_file("test", dummy_credential)
-        
+
         # Create backup files
         backup_path = Path(file_manager.data_directory) / "test-backup.zip"
         file_manager.backup_files(backup_path)
-        
+
         # Verify backup file was created and has content
         assert backup_path.exists()
         assert backup_path.stat().st_size > 0
@@ -309,13 +315,13 @@ class TestFileManagerRotation:
         backups_dir = file_manager.backups_directory
         temp_file = backups_dir / "temp_file.temp"
         temp_file.write_text("test content")
-        
+
         # Verify temp file exists
         assert temp_file.exists()
-        
+
         # Cleanup temp files
         file_manager.cleanup_temp_files()
-        
+
         # Verify temp file was removed
         assert not temp_file.exists()
 
@@ -325,17 +331,17 @@ class TestFileManagerRotation:
         history_file = file_manager.rotation_history_file_path
         if history_file.exists():
             history_file.unlink()
-        
+
         # Read rotation history
         history = file_manager.read_rotation_history()
-        
+
         # Should return empty list
         assert history == []
 
     def test_read_rotation_backup_not_found(self, file_manager):
         """Test reading non-existent rotation backup."""
         fake_backup_id = str(uuid.uuid4())
-        
+
         # This should return None when backup doesn't exist
         result = file_manager.read_rotation_backup(fake_backup_id)
         assert result is None
@@ -343,7 +349,7 @@ class TestFileManagerRotation:
     def test_delete_rotation_backup_not_found(self, file_manager):
         """Test deleting non-existent rotation backup."""
         fake_backup_id = str(uuid.uuid4())
-        
+
         # Should not raise an error, just do nothing
         file_manager.delete_rotation_backup(fake_backup_id)
 
@@ -351,9 +357,10 @@ class TestFileManagerRotation:
         """Test that save_rotation_history creates the data directory if needed."""
         # Remove data directory
         import shutil
+
         if file_manager.data_directory.exists():
             shutil.rmtree(file_manager.data_directory)
-        
+
         # Create and save rotation history
         history_entry = RotationHistory(
             rotation_id=str(uuid.uuid4()),
@@ -363,11 +370,11 @@ class TestFileManagerRotation:
             new_master_key_id=str(uuid.uuid4()),
             affected_credentials=[],
             created_at=datetime.now(timezone.utc),
-            metadata={}
+            metadata={},
         )
-        
+
         file_manager.save_rotation_history([history_entry])
-        
+
         # Verify data directory was created
         assert file_manager.data_directory.exists()
         assert file_manager.rotation_history_file_path.exists()
@@ -378,8 +385,9 @@ class TestFileManagerRotation:
         backups_dir = file_manager.backups_directory
         if backups_dir.exists():
             import shutil
+
             shutil.rmtree(backups_dir)
-        
+
         # Create and save rotation backup
         backup = RotationBackup(
             backup_id=str(uuid.uuid4()),
@@ -387,11 +395,11 @@ class TestFileManagerRotation:
             backup_type="master",
             original_data={"test": "data"},
             created_at=datetime.now(timezone.utc),
-            expires_at=datetime.now(timezone.utc) + timedelta(days=30)
+            expires_at=datetime.now(timezone.utc) + timedelta(days=30),
         )
-        
+
         file_manager.save_rotation_backup(backup)
-        
+
         # Verify backups directory was created
         assert backups_dir.exists()
         assert (backups_dir / f"{backup.backup_id}.backup.json").exists()
